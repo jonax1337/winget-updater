@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "winget-updater",
+  "productName": "Winget Updater",
   "version": "0.1.0",
   "identifier": "dev.jonas.wingetupdater",
   "build": {
@@ -12,9 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "winget-updater",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Winget Updater",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 960,
+        "minHeight": 620,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {

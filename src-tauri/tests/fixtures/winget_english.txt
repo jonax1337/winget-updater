@@ -1,0 +1,6 @@
+Name                        Id                   Version    Available  Source
+----------------------------------------------------------------------------
+Müller Werkzeug             Vendor.Mueller       1.2.3      2.0.0      winget
+Example Utility             Vendor.Utility       Unknown    3.0.0      winget
+2 upgrades available.
+Packages pinned with explicit pins will not be upgraded.

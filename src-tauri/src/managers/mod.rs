@@ -1,3 +1,9 @@
+mod chocolatey;
+mod npm;
+mod pip;
+mod scoop;
+mod winget;
+
 use crate::error::AppResult;
 use crate::models::{ManagerId, Package};
 
@@ -14,5 +20,11 @@ pub trait PackageManager: Send + Sync {
 }
 
 pub fn registry() -> Vec<Box<dyn PackageManager>> {
-    todo!("filled in by the managers implementation")
+    vec![
+        Box::new(winget::Winget),
+        Box::new(scoop::Scoop),
+        Box::new(chocolatey::Chocolatey),
+        Box::new(npm::Npm),
+        Box::new(pip::Pip),
+    ]
 }

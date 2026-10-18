@@ -1,0 +1,7 @@
+Scoop is up to date.
+Updates are available for:
+
+Name Installed Version Latest Version Missing Dependencies Info
+---- ----------------- -------------- -------------------- ----
+7zip 24.08             24.09
+ git 2.47.0            2.48.1

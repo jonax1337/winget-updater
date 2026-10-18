@@ -1,0 +1,4 @@
+{
+  "@example/cli": {"current": "1.0.0", "wanted": "1.5.0", "latest": "2.0.0", "location": "node_modules/@example/cli"},
+  "typescript": {"current": "5.6.3", "wanted": "5.7.3", "latest": "5.7.3", "dependent": "global"}
+}
