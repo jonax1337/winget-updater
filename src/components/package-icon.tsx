@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getPackageIcon } from "@/lib/api";
-import { avatarColor, initials, packageKey } from "@/lib/packages";
+import { initials, packageKey } from "@/lib/packages";
 import type { PackageRef } from "@/lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -42,18 +42,9 @@ export function PackageIcon({
     };
   }, [manager, id, name]);
   return (
-    <Avatar className="size-10 rounded-xl after:rounded-xl" aria-hidden="true">
-      {icon && (
-        <AvatarImage
-          src={icon}
-          alt=""
-          className="rounded-xl object-contain p-1"
-        />
-      )}
-      <AvatarFallback
-        className="rounded-xl text-xs font-semibold text-white"
-        style={{ backgroundColor: avatarColor(name) }}
-      >
+    <Avatar className="size-8 rounded-lg after:rounded-lg" aria-hidden="true">
+      {icon && <AvatarImage src={icon} alt="" className="rounded-lg object-contain p-0.5" />}
+      <AvatarFallback className="rounded-lg text-xs font-medium">
         {initials(name)}
       </AvatarFallback>
     </Avatar>

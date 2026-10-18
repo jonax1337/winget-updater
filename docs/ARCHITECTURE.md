@@ -110,17 +110,27 @@ Alle Commands: `Result<T, AppError>`; `AppError` serialisiert als `{ kind, messa
 
 ## UI (Frontend, `src/`)
 
-shadcn-Sidebar-Layout, Hell/Dunkel/System. Seiten:
+Layout aus dem shadcn-Block `dashboard-01` (Inset-Sidebar, einklappbar auf Icons, Site-Header mit
+Breadcrumb) unter einer eigenen Titlebar (`decorations: false`, `data-tauri-drag-region`,
+Fenster-Buttons über die Window-API). Hell/Dunkel/System.
 
-1. **Übersicht** – Kennzahlen-Karten (verfügbare Updates, letzter Scan, nächster Scan, Auto-Update an/aus),
-   Paketmanager-Status (verfügbar/Version/aktiv), große Aktionen „Jetzt prüfen“ / „Alle aktualisieren“,
-   Live-Fortschritt.
-2. **Updates** – Tabelle: App-Icon (Fallback: farbiges Initialen-Avatar), Name, Id, aktuell → neu,
-   Manager-Badge, Status (Live aus `update-event`), Ignorieren-Toggle, Einzel-Update; Mehrfachauswahl +
-   „Auswahl aktualisieren“; Suche + Manager-Filter.
-3. **Verlauf** – Tabelle der `HistoryEntry`, Status-Badges, Leeren-Button.
-4. **Einstellungen** – alle `Settings`-Felder, Manager an/aus (nicht verfügbare ausgegraut),
-   ignorierte Pakete verwalten, WinGet-Modul installieren.
+UI-Regeln:
+- Nur shadcn-Komponenten/-Blocks; keine eigenen CSS-Klassen, keine Inline-Styles.
+- Design-System = Tokens in `src/index.css` (Farben inkl. `success`/`warning`/`info`, Manager-Farben
+  `manager-*`, Fonts, Radien, `titlebar`/`header`-Höhen); Komponenten nutzen sie nur über Tailwind-Utilities.
+- Auswahllisten immer als `Combobox` (Popover + Command), keine nativen Controls (`select`, `type=number`).
+
+Seiten:
+
+1. **Übersicht** – Section-Cards (verfügbare Updates, letzter Scan, nächster Scan, Auto-Update),
+   Donut-Chart „Updates nach Quelle“, Paketmanager-Status. Aktionen „Alle aktualisieren“ / „Jetzt prüfen“
+   stehen in der Sidebar; Live-Fortschritt über allen Seiten.
+2. **Updates** – Data-Table (TanStack): App-Icon (Fallback: Initialen), Name, Id, aktuell → neu,
+   Manager-Badge, Status (Live aus `update-event`), Aktionsmenü (Einzel-Update, Ignorieren);
+   Mehrfachauswahl + „Auswahl aktualisieren“; Suche + Quellen-Combobox; Paginierung.
+3. **Verlauf** – Data-Table der `HistoryEntry`, Ergebnis-Filter (Toggle-Group), Leeren mit Bestätigung.
+4. **Einstellungen** – alle `Settings`-Felder als Field-Gruppen, Manager an/aus (nicht verfügbare
+   ausgegraut), ignorierte Pakete verwalten, WinGet-Modul installieren.
 
 Frontend-Dateien: `src/lib/types.ts` (**Vertrag**), `src/lib/api.ts` (typisierte `invoke`/`listen`-Wrapper),
 `src/hooks/*`, `src/pages/*`, `src/components/*` (eigene), `src/components/ui/*` (shadcn, nicht editieren

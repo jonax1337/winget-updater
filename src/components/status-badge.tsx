@@ -1,60 +1,22 @@
-import { Check, CircleDashed, LoaderCircle, X } from "lucide-react";
+import { Check, CircleDashed, X, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Spinner } from "@/components/ui/spinner";
 import type { UpdateStatus } from "@/lib/types";
 
-const statuses = {
-  queued: { label: "Wartend", icon: CircleDashed, className: "status-queued" },
-  running: {
-    label: "Wird aktualisiert",
-    icon: LoaderCircle,
-    className: "status-running",
-  },
-  succeeded: {
-    label: "Aktualisiert",
-    icon: Check,
-    className: "status-succeeded",
-  },
-  failed: { label: "Fehlgeschlagen", icon: X, className: "status-failed" },
-  skipped: { label: "Übersprungen", icon: CircleDashed, className: "text-muted-foreground" },
+const STATUSES: Record<UpdateStatus, { label: string; icon?: LucideIcon; tone: string }> = {
+  queued: { label: "Wartend", icon: CircleDashed, tone: "text-muted-foreground" },
+  running: { label: "Wird aktualisiert", tone: "text-info" },
+  succeeded: { label: "Aktualisiert", icon: Check, tone: "text-success" },
+  failed: { label: "Fehlgeschlagen", icon: X, tone: "text-destructive" },
+  skipped: { label: "Übersprungen", icon: CircleDashed, tone: "text-muted-foreground" },
 };
 
-export function StatusBadge({
-  status,
-  message,
-}: {
-  status: UpdateStatus;
-  message?: string | null;
-}) {
-  const { label, icon: Icon, className } = statuses[status];
-  const badge = (
-    <Badge variant="secondary" className={className}>
-      <Icon
-        className={
-          status === "running" || status === "queued"
-            ? "animate-spin"
-            : undefined
-        }
-      />
-      {label}
-      {message && <span className="sr-only">{message}</span>}
-    </Badge>
-  );
-  if (!message) return badge;
+export function StatusBadge({ status }: { status: UpdateStatus }) {
+  const { label, icon: Icon, tone } = STATUSES[status];
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button type="button" aria-label={`${label}: Details`}>
-          {badge}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-sm break-words">
-        {message}
-      </TooltipContent>
-    </Tooltip>
+    <Badge variant="outline" className={tone}>
+      {Icon ? <Icon /> : <Spinner />}
+      {label}
+    </Badge>
   );
 }

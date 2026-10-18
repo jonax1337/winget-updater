@@ -12,14 +12,6 @@ export const MANAGER_NAMES: Record<ManagerId, string> = {
   pip: "pip",
 };
 
-const avatarColors = [
-  "#276078",
-  "#705796",
-  "#84602f",
-  "#336b60",
-  "#8c4e68",
-  "#515e86",
-];
 
 export function packageKey(reference: PackageRef): string {
   return `${reference.manager}:${reference.id}`;
@@ -48,9 +40,3 @@ export function initials(name: string): string {
   return letters.join("").toLocaleUpperCase("de-DE");
 }
 
-export function avatarColor(name: string): string {
-  let hash = 0;
-  for (const character of name)
-    hash = (Math.imul(hash, 31) + character.codePointAt(0)!) >>> 0;
-  return avatarColors[hash % avatarColors.length];
-}

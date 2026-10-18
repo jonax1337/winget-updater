@@ -7,7 +7,6 @@ export function useTheme(theme: Theme = "system") {
     const apply = () => {
       const dark = theme === "dark" || (theme === "system" && system.matches);
       document.documentElement.classList.toggle("dark", dark);
-      document.documentElement.style.colorScheme = dark ? "dark" : "light";
     };
     apply();
     system.addEventListener("change", apply);

@@ -1,21 +1,20 @@
 import { useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { Info } from "lucide-react";
-import { AppSidebar, navigation, type Page } from "@/components/app-sidebar";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { AppSidebar, type Page } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
+import { TitleBar } from "@/components/title-bar";
+import { UpdateProgress } from "@/components/update-progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { UpdateActions } from "@/components/update-actions";
-import { UpdateProgress } from "@/components/update-progress";
 import { UpdaterProvider, useUpdater } from "@/hooks/use-updater";
-import { Overview } from "@/pages/overview";
-import { Updates } from "@/pages/updates";
 import { History } from "@/pages/history";
+import { Overview } from "@/pages/overview";
 import { SettingsPage } from "@/pages/settings";
+import { Updates } from "@/pages/updates";
 
 function App() {
   return (
@@ -29,68 +28,65 @@ function App() {
 
 function AppLayout() {
   const [page, setPage] = useState<Page>("overview");
-  const { settings, scanning, updating } = useUpdater();
-  const title = navigation.find((item) => item.id === page)!.title;
+  const { settings } = useUpdater();
   return (
-    <SidebarProvider>
-      <a href="#main-content" className="skip-link">
-        Zum Inhalt springen
-      </a>
-      <AppSidebar page={page} navigate={setPage} />
-      <SidebarInset className="min-w-0">
-        <header className="sticky top-0 z-20 flex min-h-19 flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-4 backdrop-blur-sm lg:px-8">
-          <div className="flex items-center gap-3">
-            <SidebarTrigger
-              className="md:hidden"
-              aria-label="Navigation öffnen"
-            />
-            <h1 className="text-sm font-semibold">{title}</h1>
-            <span className="hidden h-4 border-l sm:block" />
-            <span
-              className="hidden text-xs text-muted-foreground sm:inline"
-              role="status"
-            >
-              {scanning
-                ? "Prüfung läuft"
-                : updating
-                  ? "Aktualisierung läuft"
-                  : "Dein Software-Cockpit"}
-            </span>
-          </div>
-          <UpdateActions />
-        </header>
-        <div
-          id="main-content"
-          tabIndex={-1}
-          className="mx-auto w-full max-w-360 space-y-6 px-4 py-7 outline-none lg:px-8 lg:py-8"
-        >
-          {!isTauri() && (
-            <div
-              role="status"
-              className="flex items-start gap-3 rounded-xl border bg-card p-4 text-sm"
-            >
-              <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p className="leading-relaxed">
-                Browseransicht · Paketmanager und Einstellungen sind nur in der
-                Desktop-App verfügbar. Es werden keine Beispieldaten angezeigt.
-              </p>
+    <div className="flex h-svh flex-col bg-sidebar">
+      <TitleBar />
+      <SidebarProvider className="min-h-0! flex-1">
+        <AppSidebar
+          page={page}
+          navigate={setPage}
+          variant="inset"
+          className="top-titlebar h-[calc(100svh-var(--titlebar-height))]!"
+        />
+        <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+          <SiteHeader page={page} />
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="@container/main flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+              <Notices />
+              <CurrentPage page={page} navigate={setPage} />
             </div>
-          )}
-          <UpdateProgress />
-          {page === "overview" && <Overview navigate={setPage} />}
-          {page === "updates" && <Updates />}
-          {page === "history" && <History />}
-          {page === "settings" && <SettingsPage />}
-        </div>
-      </SidebarInset>
+          </ScrollArea>
+        </SidebarInset>
+      </SidebarProvider>
       <Toaster
         theme={settings.settings?.theme ?? "system"}
         position="bottom-right"
         richColors
         closeButton
       />
-    </SidebarProvider>
+    </div>
   );
+}
+
+function Notices() {
+  return (
+    <div className="flex flex-col gap-4 px-4 empty:hidden lg:px-6">
+      {!isTauri() && (
+        <Alert>
+          <Info />
+          <AlertTitle>Browseransicht</AlertTitle>
+          <AlertDescription>
+            Paketmanager und Einstellungen sind nur in der Desktop-App verfügbar.
+          </AlertDescription>
+        </Alert>
+      )}
+      <UpdateProgress />
+    </div>
+  );
+}
+
+function CurrentPage({ page, navigate }: { page: Page; navigate: (page: Page) => void }) {
+  switch (page) {
+    case "overview":
+      return <Overview navigate={navigate} />;
+    case "updates":
+      return <Updates />;
+    case "history":
+      return <History />;
+    case "settings":
+      return <SettingsPage />;
+  }
 }
 
 export default App;

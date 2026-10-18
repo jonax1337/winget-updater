@@ -1,306 +1,237 @@
-import { useState, type ReactNode } from "react";
-import {
-  Bell,
-  Blocks,
-  Check,
-  Clock3,
-  Download,
-  EyeOff,
-  LoaderCircle,
-  Monitor,
-  ShieldCheck,
-  Terminal,
-  Trash2,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Fragment, useState, type ReactNode } from "react";
+import { Check, Download, EyeOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
+import { Combobox } from "@/components/combobox";
+import { ResourceError } from "@/components/resource-error";
+import {
+  NumberStepper,
+  SettingField,
+  SwitchField,
+} from "@/components/setting-field";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { EmptyState } from "@/components/empty-state";
-import { ManagerBadge } from "@/components/manager-badge";
-import { ResourceError } from "@/components/resource-error";
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { FieldGroup, FieldSeparator } from "@/components/ui/field";
 import {
-  NumberSetting,
-  SettingRow,
-  ToggleSetting,
-} from "@/components/settings-fields";
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from "@/components/ui/item";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { useUpdater } from "@/hooks/use-updater";
 import { installWingetModule, toAppError } from "@/lib/api";
 import { managerVersionLabel, packageKey, parsePackageKey } from "@/lib/packages";
-import type { Settings, Theme } from "@/lib/types";
+import type { ManagerInfo, Settings, Theme } from "@/lib/types";
+
+const THEMES: { value: Theme; label: string }[] = [
+  { value: "system", label: "Wie Windows" },
+  { value: "light", label: "Hell" },
+  { value: "dark", label: "Dunkel" },
+];
 
 export function SettingsPage() {
-  const { settings, busy } = useUpdater();
+  const { settings } = useUpdater();
   const current = settings.settings;
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="page-title">So, wie es zu dir passt.</h2>
-          <p className="page-description">
-            Lege fest, wann und wie deine Software aktuell bleibt.
-          </p>
-        </div>
-        <span
-          className="flex items-center gap-1.5 text-xs text-muted-foreground"
-          role="status"
-        >
-          {settings.saving ? (
-            <>
-              <LoaderCircle className="size-3.5 animate-spin" />
-              Wird gespeichert …
-            </>
-          ) : (
-            <>
-              <Check className="size-3.5" />
-              Änderungen werden sofort gespeichert
-            </>
-          )}
-        </span>
-      </div>
+    <div className="flex max-w-4xl flex-col gap-4 px-4 lg:px-6">
       <ResourceError error={settings.error} retry={settings.refresh} />
-      {settings.loading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-48 w-full" />
-        </div>
-      ) : (
-        current && (
-          <>
-            <SettingsSection
-              icon={ShieldCheck}
-              title="Automatisierung"
-              description="Weniger manuell erledigen. Mit deinem Zeitplan."
-            >
-              <ToggleSetting
-                title="Updates automatisch installieren"
-                description="Alle verfügbaren, nicht ignorierten Pakete nach einer Prüfung aktualisieren."
-                checked={current.autoUpdate}
-                onChange={(autoUpdate) => void settings.patch({ autoUpdate })}
-              />
-              <SettingRow
-                title="Prüfintervall"
-                description="In diesem Abstand nach neuen Versionen suchen."
-              >
-                {(describedBy) => <NumberSetting
-                  describedBy={describedBy}
-                  label="Prüfintervall in Stunden"
-                  value={current.checkIntervalHours}
-                  min={1}
-                  max={168}
-                  unit="Stunden"
-                  onChange={(checkIntervalHours) =>
-                    void settings.patch({ checkIntervalHours })
-                  }
-                />}
-              </SettingRow>
-              <ToggleSetting
-                title="Nach dem App-Start prüfen"
-                description="Nach der Startverzögerung eine erste Prüfung ausführen."
-                checked={current.updateOnStartup}
-                onChange={(updateOnStartup) =>
-                  void settings.patch({ updateOnStartup })
-                }
-              />
-              <SettingRow
-                title="Startverzögerung"
-                description="Windows und deinen Anwendungen Zeit zum Starten geben."
-              >
-                {(describedBy) => <NumberSetting
-                  describedBy={describedBy}
-                  label="Startverzögerung in Minuten"
-                  value={current.startupDelayMinutes}
-                  min={0}
-                  max={60}
-                  unit="Minuten"
-                  onChange={(startupDelayMinutes) =>
-                    void settings.patch({ startupDelayMinutes })
-                  }
-                />}
-              </SettingRow>
-              <ToggleSetting
-                title="Mit Windows starten"
-                description="Die App beim Anmelden minimiert im Infobereich starten."
-                checked={current.autostart}
-                onChange={(autostart) => void settings.patch({ autostart })}
-              />
-            </SettingsSection>
-            <SettingsSection
-              icon={Blocks}
-              title="Paketmanager"
-              description="Nur installierte und aktivierte Quellen werden geprüft."
-            >
-              <ManagersSettings current={current} />
-            </SettingsSection>
-            <SettingsSection
-              icon={Bell}
-              title="Benachrichtigungen & Darstellung"
-              description="Das Wichtigste mitbekommen, ohne unterbrochen zu werden."
-            >
-              <ToggleSetting
-                title="Windows-Benachrichtigungen"
-                description="Über gefundene Updates und abgeschlossene Aktualisierungen informieren."
-                checked={current.notify}
-                onChange={(notify) => void settings.patch({ notify })}
-              />
-              <SettingRow
-                title="Erscheinungsbild"
-                description="Hell, dunkel oder automatisch passend zu Windows."
-              >
-                {(describedBy) => <Select
-                  value={current.theme}
-                  onValueChange={(theme: Theme) =>
-                    void settings.patch({ theme })
-                  }
-                >
-                  <SelectTrigger
-                    className="min-w-36"
-                    aria-label="Erscheinungsbild"
-                    aria-describedby={describedBy}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="system">
-                      <Monitor className="size-4" />
-                      System
-                    </SelectItem>
-                    <SelectItem value="light">Hell</SelectItem>
-                    <SelectItem value="dark">Dunkel</SelectItem>
-                  </SelectContent>
-                </Select>}
-              </SettingRow>
-            </SettingsSection>
-            <SettingsSection
-              icon={Terminal}
-              title="WinGet-Erkennung"
-              description="Zuverlässige Paket-IDs, auch bei langen Anwendungsnamen."
-            >
-              <ToggleSetting
-                title="Unbekannte Versionen einbeziehen"
-                description="Auch Pakete prüfen, deren installierte Version WinGet nicht ermitteln kann."
-                checked={current.includeUnknownVersions}
-                onChange={(includeUnknownVersions) =>
-                  void settings.patch({ includeUnknownVersions })
-                }
-              />
-              <WingetModule />
-            </SettingsSection>
-            <SettingsSection
-              icon={EyeOff}
-              title="Ignorierte Pakete"
-              description="Diese Pakete werden nie automatisch aktualisiert. Du kannst sie jederzeit wieder freigeben."
-            >
-              <IgnoredPackages current={current} disabled={busy || settings.saving} />
-            </SettingsSection>
-          </>
-        )
+      {settings.loading && <Skeleton className="h-96" />}
+      {current && (
+        <>
+          <Automation current={current} />
+          <Managers current={current} />
+          <Appearance current={current} />
+          <Winget current={current} />
+          <IgnoredPackages current={current} />
+        </>
       )}
-      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Clock3 className="size-3.5" />
-        Eine Änderung am Zeitplan plant die nächste Prüfung neu.
-      </p>
     </div>
   );
 }
 
-function SettingsSection({
-  icon: Icon,
+function Section({
   title,
   description,
   children,
 }: {
-  icon: LucideIcon;
   title: string;
   description: string;
   children: ReactNode;
 }) {
+  const { settings } = useUpdater();
   return (
-    <Card className="[--card-spacing:--spacing(5)]">
+    <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Icon className="size-4 text-primary" />
-          {title}
-        </CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
+        <CardAction className="text-muted-foreground" aria-live="polite">
+          {settings.saving ? <Spinner /> : <Check className="size-4" aria-label="Gespeichert" />}
+        </CardAction>
       </CardHeader>
-      <CardContent className="divide-y">{children}</CardContent>
+      <CardContent>
+        <FieldGroup>{children}</FieldGroup>
+      </CardContent>
     </Card>
   );
 }
 
-function ManagersSettings({ current }: { current: Settings }) {
-  const { managers, settings, busy } = useUpdater();
-  const enabled = current.enabledManagers;
+function Automation({ current }: { current: Settings }) {
+  const { settings } = useUpdater();
   return (
-    <>
-      <ResourceError error={managers.error} retry={managers.refresh} />
-      {managers.loading ? (
-        <Skeleton className="h-48" />
-      ) : (
-        managers.managers.map((manager) => (
-          <div
-            key={manager.id}
-            className="flex items-center justify-between gap-5 py-4 first:pt-0 last:pb-0"
-          >
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <ManagerBadge manager={manager.id} />
-                <span className="text-xs text-muted-foreground">
-                  {managerVersionLabel(manager)}
-                </span>
-                {!manager.available && (
-                  <Badge variant="outline">Nicht verfügbar</Badge>
-                )}
-              </div>
-              <p
-                id={`manager-${manager.id}-hint`}
-                className="mt-2 text-xs text-muted-foreground"
-              >
-                {!manager.available
-                  ? "Installiere diesen Paketmanager, um ihn zu aktivieren."
-                  : manager.requiresAdmin
-                    ? "Aktualisierungen benötigen Administratorrechte."
-                    : "Verfügbare Updates in die Prüfung einbeziehen."}
-              </p>
-            </div>
-            <Switch
-              aria-label={`${manager.name} aktivieren`}
-              aria-describedby={`manager-${manager.id}-hint`}
-              checked={enabled.includes(manager.id)}
-              disabled={!manager.available || busy || settings.saving}
-              onCheckedChange={(checked) =>
-                void settings.patch({
-                  enabledManagers: checked
-                    ? [...enabled, manager.id]
-                    : enabled.filter((id) => id !== manager.id),
-                })
-              }
-            />
-          </div>
-        ))
-      )}
-    </>
+    <Section title="Automatisierung" description="Wann geprüft und aktualisiert wird.">
+      <SwitchField
+        label="Updates automatisch installieren"
+        description="Nach jeder Prüfung alle nicht ignorierten Pakete aktualisieren."
+        checked={current.autoUpdate}
+        onChange={(autoUpdate) => void settings.patch({ autoUpdate })}
+      />
+      <FieldSeparator />
+      <SettingField label="Prüfintervall" description="Abstand zwischen zwei automatischen Prüfungen.">
+        {(ids) => (
+          <NumberStepper
+            id={ids.control}
+            describedBy={ids.description}
+            value={current.checkIntervalHours}
+            min={1}
+            max={168}
+            unit="Std."
+            onChange={(checkIntervalHours) => void settings.patch({ checkIntervalHours })}
+          />
+        )}
+      </SettingField>
+      <FieldSeparator />
+      <SwitchField
+        label="Nach dem App-Start prüfen"
+        description="Nach der Startverzögerung eine erste Prüfung ausführen."
+        checked={current.updateOnStartup}
+        onChange={(updateOnStartup) => void settings.patch({ updateOnStartup })}
+      />
+      <FieldSeparator />
+      <SettingField label="Startverzögerung" description="Windows Zeit zum Hochfahren lassen.">
+        {(ids) => (
+          <NumberStepper
+            id={ids.control}
+            describedBy={ids.description}
+            value={current.startupDelayMinutes}
+            min={0}
+            max={60}
+            unit="Min."
+            onChange={(startupDelayMinutes) => void settings.patch({ startupDelayMinutes })}
+          />
+        )}
+      </SettingField>
+      <FieldSeparator />
+      <SwitchField
+        label="Mit Windows starten"
+        description="Beim Anmelden minimiert im Infobereich starten."
+        checked={current.autostart}
+        onChange={(autostart) => void settings.patch({ autostart })}
+      />
+    </Section>
   );
 }
 
-function WingetModule() {
+function Managers({ current }: { current: Settings }) {
+  const { managers, settings, busy } = useUpdater();
+  const enabled = current.enabledManagers;
+  return (
+    <Section title="Paketmanager" description="Nur installierte und aktivierte Quellen werden geprüft.">
+      <ResourceError error={managers.error} retry={managers.refresh} />
+      {managers.loading && <Skeleton className="h-48" />}
+      {managers.managers.map((manager, index) => (
+        <Fragment key={manager.id}>
+          {index > 0 && <FieldSeparator />}
+          <SwitchField
+            label={`${manager.name} · ${managerVersionLabel(manager)}`}
+            description={managerHint(manager)}
+            checked={enabled.includes(manager.id)}
+            disabled={!manager.available || busy || settings.saving}
+            onChange={(checked) =>
+              void settings.patch({
+                enabledManagers: checked
+                  ? [...enabled, manager.id]
+                  : enabled.filter((id) => id !== manager.id),
+              })
+            }
+          />
+        </Fragment>
+      ))}
+    </Section>
+  );
+}
+
+function managerHint(manager: ManagerInfo): string {
+  if (!manager.available) return "Installiere diesen Paketmanager, um ihn zu aktivieren.";
+  if (manager.requiresAdmin) return "Aktualisierungen benötigen Administratorrechte.";
+  return "Verfügbare Updates in die Prüfung einbeziehen.";
+}
+
+function Appearance({ current }: { current: Settings }) {
+  const { settings } = useUpdater();
+  return (
+    <Section title="Benachrichtigungen & Darstellung" description="Informiert bleiben, ohne gestört zu werden.">
+      <SwitchField
+        label="Windows-Benachrichtigungen"
+        description="Über gefundene Updates und abgeschlossene Aktualisierungen informieren."
+        checked={current.notify}
+        onChange={(notify) => void settings.patch({ notify })}
+      />
+      <FieldSeparator />
+      <SettingField label="Erscheinungsbild" description="Hell, dunkel oder passend zu Windows.">
+        {(ids) => (
+          <Combobox
+            label="Erscheinungsbild"
+            aria-describedby={ids.description}
+            value={current.theme}
+            options={THEMES}
+            onChange={(theme) => void settings.patch({ theme })}
+            className="w-40"
+          />
+        )}
+      </SettingField>
+    </Section>
+  );
+}
+
+function Winget({ current }: { current: Settings }) {
+  const { settings } = useUpdater();
+  return (
+    <Section title="WinGet-Erkennung" description="Zuverlässige Paket-IDs, auch bei langen Namen.">
+      <SwitchField
+        label="Unbekannte Versionen einbeziehen"
+        description="Auch Pakete prüfen, deren installierte Version WinGet nicht kennt."
+        checked={current.includeUnknownVersions}
+        onChange={(includeUnknownVersions) => void settings.patch({ includeUnknownVersions })}
+      />
+      <FieldSeparator />
+      <SettingField
+        label="PowerShell-Modul"
+        description="Microsoft.WinGet.Client für genauere Erkennung ohne abgeschnittene IDs. Startet keine Updates."
+      >
+        {(ids) => <InstallWingetModule id={ids.control} describedBy={ids.description} />}
+      </SettingField>
+    </Section>
+  );
+}
+
+function InstallWingetModule({ id, describedBy }: { id: string; describedBy: string }) {
   const { busy, managers } = useUpdater();
   const [installing, setInstalling] = useState(false);
   const install = async () => {
@@ -320,77 +251,77 @@ function WingetModule() {
     }
   };
   return (
-    <div className="pt-5">
-      <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
-        Das Modul Microsoft.WinGet.Client ermöglicht eine genauere Erkennung
-        ohne abgeschnittene IDs. Es wird für dein Benutzerkonto installiert.
-        Dies startet keine Paket-Updates.
-      </p>
-      <Button
-        variant="outline"
-        className="max-w-full whitespace-normal"
-        disabled={installing || busy}
-        onClick={() => void install()}
-      >
-        {installing ? <LoaderCircle className="animate-spin" /> : <Download />}
-        {installing
-          ? "Modul wird installiert …"
-          : "WinGet-PowerShell-Modul installieren"}
-      </Button>
-    </div>
+    <Button
+      id={id}
+      variant="outline"
+      aria-describedby={describedBy}
+      disabled={installing || busy}
+      onClick={() => void install()}
+    >
+      {installing ? <Spinner data-icon="inline-start" /> : <Download data-icon="inline-start" />}
+      Installieren
+    </Button>
   );
 }
 
-function IgnoredPackages({ current, disabled }: { current: Settings; disabled: boolean }) {
-  const { settings, packages } = useUpdater();
+function IgnoredPackages({ current }: { current: Settings }) {
+  const { settings, packages, busy } = useUpdater();
   const ignored = current.ignoredPackages;
-  if (!ignored.length)
-    return (
-      <EmptyState
-        icon={EyeOff}
-        title="Keine Ausnahmen"
-        description="Über den Schalter „Ignorieren“ auf der Updates-Seite kannst du einzelne Pakete von automatischen Updates ausnehmen."
-      />
-    );
   return (
-    <div className="divide-y">
-      {ignored.map((key) => {
-        const reference = parsePackageKey(key);
-        const entry = packages.find(
-          (candidate) => packageKey(candidate) === key,
-        );
-        return (
-          <div
-            key={key}
-            className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {entry?.name ?? reference?.id ?? key}
-              </p>
-              <p className="mt-1 truncate text-xs text-muted-foreground">
-                {key}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={`${entry?.name ?? key} aus Ausnahmen entfernen`}
-              disabled={disabled}
-              onClick={() =>
-                reference
-                  ? void settings.ignore(reference, false)
-                  : void settings.patch({
-                      ignoredPackages: ignored.filter((entry) => entry !== key),
-                    })
-              }
-            >
-              <Trash2 />
-              <span className="hidden sm:inline">Entfernen</span>
-            </Button>
-          </div>
-        );
-      })}
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Ignorierte Pakete</CardTitle>
+        <CardDescription>Werden nie automatisch aktualisiert.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {ignored.length ? (
+          <ItemGroup className="gap-2">
+            {ignored.map((key) => {
+              const reference = parsePackageKey(key);
+              const name =
+                packages.find((candidate) => packageKey(candidate) === key)?.name ?? reference?.id ?? key;
+              return (
+                <Item key={key} variant="outline" size="sm">
+                  <ItemContent>
+                    <ItemTitle>{name}</ItemTitle>
+                    <ItemDescription className="font-mono">{key}</ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`${name} wieder freigeben`}
+                      disabled={busy || settings.saving}
+                      onClick={() =>
+                        reference
+                          ? void settings.ignore(reference, false)
+                          : void settings.patch({
+                              ignoredPackages: ignored.filter((entry) => entry !== key),
+                            })
+                      }
+                    >
+                      <Trash2 data-icon="inline-start" />
+                      Freigeben
+                    </Button>
+                  </ItemActions>
+                </Item>
+              );
+            })}
+          </ItemGroup>
+        ) : (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <EyeOff />
+              </EmptyMedia>
+              <EmptyTitle>Keine Ausnahmen</EmptyTitle>
+              <EmptyDescription>
+                Pakete lassen sich auf der Updates-Seite über das Aktionsmenü ignorieren.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </CardContent>
+    </Card>
   );
 }

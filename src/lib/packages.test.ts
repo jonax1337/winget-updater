@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avatarColor, initials, managerVersionLabel, packageKey, parsePackageKey } from "./packages";
+import { initials, managerVersionLabel, packageKey, parsePackageKey } from "./packages";
 import type { ManagerInfo } from "./types";
 
 describe("managerVersionLabel", () => {
@@ -46,13 +46,3 @@ describe("initials", () => {
   });
 });
 
-describe("avatarColor", () => {
-  it("is deterministic and returns a hex color", () => {
-    expect(avatarColor("Firefox")).toBe(avatarColor("Firefox"));
-    expect(avatarColor("Firefox")).toMatch(/^#[0-9a-f]{6}$/);
-  });
-  it("handles empty names and long names", () => {
-    expect(avatarColor("")).toMatch(/^#[0-9a-f]{6}$/);
-    expect(avatarColor("a".repeat(1000))).toMatch(/^#[0-9a-f]{6}$/);
-  });
-});

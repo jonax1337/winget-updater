@@ -1,56 +1,49 @@
-import { CheckCheck, LoaderCircle } from "lucide-react";
+import { CheckCheck } from "lucide-react";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import { useUpdater } from "@/hooks/use-updater";
+import type { UpdateSummary } from "@/lib/types";
 
 export function UpdateProgress() {
   const { progress } = useUpdater();
   if (!progress.total && !progress.summary) return null;
   const updating = progress.total > 0 && !progress.summary;
   const total = Math.max(progress.total, progress.completed);
-  const value = total ? (progress.completed / total) * 100 : 0;
   const running = Array.from(progress.events.values()).find(
     (event) => event.status === "running",
   );
   return (
-    <section
-      className="rounded-xl border bg-card px-5 py-4"
-      aria-label="Update-Fortschritt"
-      aria-live="polite"
-    >
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        {updating ? (
-          <LoaderCircle className="size-5 animate-spin text-primary" />
-        ) : (
-          <CheckCheck className="size-5 text-primary" />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">
-            {updating
-              ? "Anwendungen werden aktualisiert"
-              : "Aktualisierung abgeschlossen"}
-          </p>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {running
-              ? running.package.id
-              : "Ein Paket nach dem anderen. Die App kann im Hintergrund weiterlaufen."}
-          </p>
-        </div>
-        <span className="text-sm font-medium tabular-nums">
-          {progress.completed} von {total || "…"}
-        </span>
-      </div>
-      <Progress
-        value={value}
-        aria-label="Abgeschlossene Pakete"
-        aria-valuenow={progress.completed}
-        aria-valuemax={total || 1}
-      />
-      {progress.summary && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          {progress.summary.succeeded} erfolgreich · {progress.summary.failed}{" "}
-          fehlgeschlagen
-        </p>
-      )}
-    </section>
+    <Item variant="outline" aria-label="Update-Fortschritt" aria-live="polite">
+      <ItemMedia variant="icon">{updating ? <Spinner /> : <CheckCheck />}</ItemMedia>
+      <ItemContent>
+        <ItemTitle>
+          {updating ? "Anwendungen werden aktualisiert" : "Aktualisierung abgeschlossen"}
+        </ItemTitle>
+        <ItemDescription>{progressDetail(running?.package.id, progress.summary)}</ItemDescription>
+      </ItemContent>
+      <ItemActions className="text-sm font-medium tabular-nums">
+        {progress.completed} von {total || "…"}
+      </ItemActions>
+      <ItemFooter>
+        <Progress
+          value={total ? (progress.completed / total) * 100 : 0}
+          aria-label="Abgeschlossene Pakete"
+        />
+      </ItemFooter>
+    </Item>
   );
+}
+
+function progressDetail(runningId?: string, summary?: UpdateSummary | null): string {
+  if (summary) return `${summary.succeeded} erfolgreich · ${summary.failed} fehlgeschlagen`;
+  return runningId ?? "Ein Paket nach dem anderen – die App kann im Hintergrund weiterlaufen.";
 }

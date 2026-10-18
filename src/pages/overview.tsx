@@ -1,188 +1,131 @@
-import {
-  ArrowRight,
-  Blocks,
-  CalendarClock,
-  Clock3,
-  PackageCheck,
-  RefreshCw,
-  ShieldCheck,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ManagerBadge } from "@/components/manager-badge";
-import { RelativeTime } from "@/components/relative-time";
-import { ResourceError } from "@/components/resource-error";
-import { UpdateActions } from "@/components/update-actions";
-import { useUpdater } from "@/hooks/use-updater";
+import { ArrowRight, Blocks, ShieldCheck } from "lucide-react";
+import { Label, Pie, PieChart } from "recharts";
 import type { Page } from "@/components/app-sidebar";
-import type { ReactNode } from "react";
-import { plural } from "@/lib/format";
-import { managerVersionLabel } from "@/lib/packages";
+import { ManagerBadge } from "@/components/manager-badge";
+import { ResourceError } from "@/components/resource-error";
+import { SectionCards } from "@/components/section-cards";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+} from "@/components/ui/item";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useUpdater } from "@/hooks/use-updater";
+import { MANAGER_NAMES, managerVersionLabel } from "@/lib/packages";
+import type { ManagerId, ManagerInfo } from "@/lib/types";
 
-function updateHeadline(scanning: boolean, count: number, hasScan: boolean): string {
-  if (scanning) return "Wir suchen nach neuen Versionen.";
-  if (count) return plural(count, "Update wartet auf dich.", "Updates warten auf dich.");
-  if (hasScan) return "Auf dem neuesten Stand.";
-  return "Ein guter Zeitpunkt zum Prüfen.";
-}
+const chartConfig = {
+  updates: { label: "Updates" },
+  winget: { label: MANAGER_NAMES.winget, color: "var(--color-manager-winget)" },
+  scoop: { label: MANAGER_NAMES.scoop, color: "var(--color-manager-scoop)" },
+  chocolatey: { label: MANAGER_NAMES.chocolatey, color: "var(--color-manager-chocolatey)" },
+  npm: { label: MANAGER_NAMES.npm, color: "var(--color-manager-npm)" },
+  pip: { label: MANAGER_NAMES.pip, color: "var(--color-manager-pip)" },
+} satisfies ChartConfig;
 
 export function Overview({ navigate }: { navigate: (page: Page) => void }) {
-  const { run, scan, settings, actionable, packages, scanning } = useUpdater();
-  const loading = run.loading || scan.loading;
+  const { run, scan, settings } = useUpdater();
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="page-title">Alles im Blick.</h2>
-        <p className="page-description">
-          Deine Anwendungen aktuell halten. Ganz nebenbei.
-        </p>
-      </div>
-      <ResourceError
-        error={run.error ?? scan.error ?? settings.error}
-        retry={() => {
-          void run.refresh();
-          void scan.refresh();
-          void settings.refresh();
-        }}
-      />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          icon={PackageCheck}
-          label="Verfügbare Updates"
-          loading={loading}
-          value={
-            <span className="text-3xl tabular-nums">
-              {scan.scan ? actionable.length : "—"}
-            </span>
-          }
-          detail={
-            packages.some((entry) => entry.ignored)
-              ? `${packages.filter((entry) => entry.ignored).length} ignoriert`
-              : "Bereit zur Aktualisierung"
-          }
-        />
-        <Metric
-          icon={Clock3}
-          label="Letzte Prüfung"
-          loading={loading}
-          value={
-            <RelativeTime
-              timestamp={run.state.lastScan ?? scan.scan?.scannedAt ?? null}
-              fallback="Noch keine"
-            />
-          }
-          detail={
-            scanning
-              ? "Neue Versionen werden gesucht …"
-              : "Alle aktiven Paketmanager"
-          }
-        />
-        <Metric
-          icon={CalendarClock}
-          label="Nächste Prüfung"
-          loading={run.loading}
-          value={<RelativeTime timestamp={run.state.nextScan} />}
-          detail={
-            settings.settings
-              ? `Automatisch alle ${settings.settings.checkIntervalHours} Stunden`
-              : "Zeitplan wird geladen"
-          }
-        />
-        <Metric
-          icon={ShieldCheck}
-          label="Automatische Updates"
-          loading={settings.loading}
-          value={
-            !settings.settings
-              ? "Nicht verbunden"
-              : settings.settings.autoUpdate
-                ? "Aktiviert"
-                : "Deaktiviert"
-          }
-          detail={
-            !settings.settings
-              ? "Einstellungen nicht verfügbar"
-              : settings.settings.autoUpdate
-                ? "Updates ohne manuelles Eingreifen"
-                : "Du startest jede Aktualisierung"
-          }
+    <>
+      <div className="px-4 empty:hidden lg:px-6">
+        <ResourceError
+          error={run.error ?? scan.error ?? settings.error}
+          retry={() => {
+            void run.refresh();
+            void scan.refresh();
+            void settings.refresh();
+          }}
         />
       </div>
-      <Card className="overview-action [--card-spacing:--spacing(6)]">
-        <CardContent className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <ShieldCheck className="size-7" strokeWidth={1.4} />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold tracking-tight">
-                {updateHeadline(scanning, actionable.length, Boolean(scan.scan))}
-              </h3>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
-                {scan.scan?.errors.length
-                  ? "Nicht alle Paketmanager konnten geprüft werden. Details findest du unter Updates."
-                  : "Ein gemeinsamer Ort für deine Paketmanager. Prüfe neue Versionen oder aktualisiere alle Anwendungen auf einmal."}
-              </p>
-              <div className="mt-5">
-                <UpdateActions large />
-              </div>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            className="self-start md:self-center"
-            onClick={() => navigate("updates")}
-          >
-            Updates ansehen
-            <ArrowRight />
-          </Button>
-        </CardContent>
-      </Card>
-      <ManagerStatus />
-      <div className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-        <RefreshCw className="mt-0.5 size-3.5 shrink-0" />
-        <p>
-          Fenster schließen beendet die App nicht. Im Infobereich von Windows
-          laufen Prüfungen und Updates weiter.
-        </p>
+      <SectionCards />
+      <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @3xl/main:grid-cols-2">
+        <UpdatesBySource onShowAll={() => navigate("updates")} />
+        <ManagerStatus />
       </div>
-    </div>
+    </>
   );
 }
 
-function Metric({
-  icon: Icon,
-  label,
-  value,
-  detail,
-  loading,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: ReactNode;
-  detail: string;
-  loading: boolean;
-}) {
+function UpdatesBySource({ onShowAll }: { onShowAll: () => void }) {
+  const { actionable } = useUpdater();
+  const data = (Object.keys(MANAGER_NAMES) as ManagerId[])
+    .map((manager) => ({
+      manager,
+      updates: actionable.filter((entry) => entry.manager === manager).length,
+      fill: `var(--color-${manager})`,
+    }))
+    .filter((entry) => entry.updates > 0);
   return (
-    <Card className="[--card-spacing:--spacing(5)]">
-      <CardContent>
-        <div className="flex items-center justify-between gap-3 text-muted-foreground">
-          <p className="text-xs font-medium">{label}</p>
-          <Icon className="size-4" strokeWidth={1.7} />
-        </div>
-        {loading ? (
-          <Skeleton className="my-4 h-8 w-28" />
+    <Card className="flex flex-col">
+      <CardHeader>
+        <CardTitle>Updates nach Quelle</CardTitle>
+        <CardDescription>Verfügbare, nicht ignorierte Versionen</CardDescription>
+        <CardAction>
+          <Button variant="ghost" size="sm" onClick={onShowAll}>
+            Alle anzeigen
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex-1">
+        {data.length ? (
+          <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-64">
+            <PieChart>
+              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+              <Pie data={data} dataKey="updates" nameKey="manager" innerRadius={60} strokeWidth={5}>
+                <Label
+                  content={({ viewBox }) =>
+                    viewBox && "cx" in viewBox && "cy" in viewBox ? (
+                      <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                        <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-3xl font-bold">
+                          {actionable.length}
+                        </tspan>
+                        <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 24} className="fill-muted-foreground">
+                          Updates
+                        </tspan>
+                      </text>
+                    ) : null
+                  }
+                />
+              </Pie>
+            </PieChart>
+          </ChartContainer>
         ) : (
-          <div className="mb-3 mt-4 text-xl font-semibold tracking-tight">
-            {value}
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ShieldCheck />
+              </EmptyMedia>
+              <EmptyTitle>Alles aktuell</EmptyTitle>
+              <EmptyDescription>Keine ausstehenden Updates gefunden.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          {detail}
-        </p>
       </CardContent>
     </Card>
   );
@@ -191,63 +134,45 @@ function Metric({
 function ManagerStatus() {
   const { managers, settings } = useUpdater();
   return (
-    <Card className="[--card-spacing:--spacing(5)]">
+    <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle>Paketmanager</CardTitle>
+        <CardDescription>Quellen, die nach neuen Versionen durchsucht werden</CardDescription>
+        <CardAction>
           <Blocks className="size-4 text-muted-foreground" />
-          Paketmanager
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Deine verbundenen Quellen für neue Versionen.
-        </p>
+        </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
         <ResourceError error={managers.error} retry={managers.refresh} />
-        <div className="divide-y">
+        <ItemGroup className="gap-2">
           {managers.loading
-            ? Array.from({ length: 5 }, (_, index) => (
-                <div key={index} className="flex items-center gap-4 py-4">
-                  <Skeleton className="h-6 w-24" />
-                  <Skeleton className="h-4 w-32" />
-                </div>
-              ))
-            : managers.managers.map((manager) => {
-                const enabled =
-                  settings.settings?.enabledManagers.includes(manager.id) ??
-                  manager.enabled;
-                return (
-                  <div
-                    key={manager.id}
-                    className="flex flex-wrap items-center gap-3 py-4 first:pt-0 last:pb-0"
-                  >
+            ? Array.from({ length: 5 }, (_, index) => <Skeleton key={index} className="h-12" />)
+            : managers.managers.map((manager) => (
+                <Item key={manager.id} variant="outline" size="sm">
+                  <ItemContent>
                     <ManagerBadge manager={manager.id} />
-                    <span className="min-w-24 flex-1 text-sm text-muted-foreground">
-                      {managerVersionLabel(manager)}
-                    </span>
-                    {manager.requiresAdmin && (
-                      <span className="text-xs text-muted-foreground">
-                        Administratorrechte nötig
-                      </span>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={
-                        manager.available && enabled
-                          ? "status-succeeded"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      {!manager.available
-                        ? "Nicht verfügbar"
-                        : enabled
-                          ? "Aktiv"
-                          : "Pausiert"}
-                    </Badge>
-                  </div>
-                );
-              })}
-        </div>
+                    <ItemDescription>{managerVersionLabel(manager)}</ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <ManagerState
+                      manager={manager}
+                      enabled={settings.settings?.enabledManagers.includes(manager.id) ?? manager.enabled}
+                    />
+                  </ItemActions>
+                </Item>
+              ))}
+        </ItemGroup>
       </CardContent>
     </Card>
+  );
+}
+
+function ManagerState({ manager, enabled }: { manager: ManagerInfo; enabled: boolean }) {
+  if (!manager.available) return <Badge variant="outline">Nicht installiert</Badge>;
+  if (!enabled) return <Badge variant="secondary">Pausiert</Badge>;
+  return (
+    <Badge variant="outline" className="text-success">
+      {manager.requiresAdmin ? "Aktiv · Admin" : "Aktiv"}
+    </Badge>
   );
 }
