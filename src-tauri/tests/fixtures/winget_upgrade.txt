@@ -1,0 +1,4 @@
+Name                        ID            Version Verfügbar Quelle
+------------------------------------------------------------------
+Windows-Subsystem für Linux Microsoft.WSL 2.7.3.0 2.7.13    winget
+1 Aktualisierungen verfügbar.
