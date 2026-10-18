@@ -1,0 +1,7 @@
+Name Installed Version Latest Version Missing Dependencies Info
+---- ----------------- -------------- -------------------- ----
+gone 1                                                     Manifest removed
+deps 1                                dependency           
+held 1                 2                                   Held package
+glob 1                 2                                   Global install
+ git 1                 2                                   

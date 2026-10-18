@@ -1,6 +1,7 @@
 use std::io::Read;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -12,7 +13,12 @@ const POLL_INTERVAL: Duration = Duration::from_millis(25);
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-type OutputReader = Receiver<std::io::Result<Vec<u8>>>;
+const OUTPUT_GRACE: Duration = Duration::from_secs(5);
+
+struct OutputReader {
+    finished: Receiver<std::io::Result<()>>,
+    bytes: Arc<Mutex<Vec<u8>>>,
+}
 
 #[derive(Debug)]
 pub struct CommandOutput {
@@ -43,16 +49,25 @@ impl CommandOutput {
     }
 }
 
-pub fn detect_version(program: &str, args: &[&str]) -> Option<String> {
-    let output = run(program, args, LIST_TIMEOUT).ok()?;
-    if !output.success {
-        return None;
+pub fn detect_version(program: &str, args: &[&str]) -> AppResult<Option<String>> {
+    version_from_output(run(program, args, LIST_TIMEOUT), program)
+}
+
+fn version_from_output(
+    result: AppResult<CommandOutput>,
+    program: &str,
+) -> AppResult<Option<String>> {
+    let output = match result {
+        Err(AppError::ManagerUnavailable(_)) => return Ok(None),
+        result => result?,
     }
-    output
+    .ensure_success(&format!("{program} --version"))?;
+    let version = output
         .stdout
         .lines()
         .find(|line| !line.trim().is_empty())
-        .map(|line| line.trim().to_owned())
+        .ok_or_else(|| AppError::Parse(format!("{program} --version: Versionsausgabe fehlt")))?;
+    Ok(Some(version.trim().to_owned()))
 }
 
 pub fn validate_package_id(package_id: &str) -> AppResult<()> {
@@ -78,16 +93,30 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> AppResult<Command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| command_error(&context, error))?;
-    let started = Instant::now();
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                AppError::ManagerUnavailable(program.into())
+            } else {
+                command_error(&context, error)
+            }
+        })?;
     let stdout = read_in_background(child.stdout.take().expect("stdout was piped"));
     let stderr = read_in_background(child.stderr.take().expect("stderr was piped"));
     let status = wait_for_exit(&mut child, timeout, &context)?;
+    let output_deadline = Instant::now() + OUTPUT_GRACE;
     Ok(CommandOutput {
         success: status.success(),
         exit_code: status.code(),
-        stdout: collect_output(stdout, timeout.saturating_sub(started.elapsed()), &context)?,
-        stderr: collect_output(stderr, timeout.saturating_sub(started.elapsed()), &context)?,
+        stdout: collect_output(
+            stdout,
+            output_deadline.saturating_duration_since(Instant::now()),
+            &context,
+        )?,
+        stderr: collect_output(
+            stderr,
+            output_deadline.saturating_duration_since(Instant::now()),
+            &context,
+        )?,
     })
 }
 
@@ -120,7 +149,9 @@ fn windows_command(program: &str, args: &[&str]) -> AppResult<Command> {
         command.args(args);
         return Ok(command);
     }
-    let quoted = std::iter::once(shim)
+    let shim_path = find_shim(shim)?;
+    let shim = shim_path.to_string_lossy();
+    let quoted = std::iter::once(shim.as_ref())
         .chain(args.iter().copied())
         .map(quote_cmd_argument)
         .collect::<AppResult<Vec<_>>>()?
@@ -129,6 +160,27 @@ fn windows_command(program: &str, args: &[&str]) -> AppResult<Command> {
     // raw_arg preserves cmd's outer quotes; Command::arg uses incompatible CRT escaping.
     command.raw_arg(format!("/D /S /C \"{quoted}\""));
     Ok(command)
+}
+
+#[cfg(windows)]
+fn find_shim(shim: &str) -> AppResult<std::path::PathBuf> {
+    let path = std::path::Path::new(shim);
+    let candidates = if path.components().count() > 1 || path.is_absolute() {
+        vec![path.to_owned()]
+    } else {
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|directory| directory.join(shim))
+            .collect()
+    };
+    for candidate in candidates {
+        match std::fs::symlink_metadata(&candidate) {
+            Ok(metadata) if !metadata.is_dir() => return Ok(candidate),
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(command_error(shim, error)),
+        }
+    }
+    Err(AppError::ManagerUnavailable(shim.into()))
 }
 
 #[cfg(windows)]
@@ -142,13 +194,29 @@ fn quote_cmd_argument(argument: &str) -> AppResult<String> {
 }
 
 fn read_in_background(mut stream: impl Read + Send + 'static) -> OutputReader {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, finished) = mpsc::channel();
+    let bytes = Arc::new(Mutex::new(Vec::new()));
+    let buffer = Arc::clone(&bytes);
     thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let result = stream.read_to_end(&mut bytes).map(|_| bytes);
+        let result = read_chunks(&mut stream, &buffer);
         let _ = sender.send(result);
     });
-    receiver
+    OutputReader { finished, bytes }
+}
+
+fn read_chunks(stream: &mut impl Read, buffer: &Mutex<Vec<u8>>) -> std::io::Result<()> {
+    let mut chunk = [0; 8192];
+    loop {
+        match stream.read(&mut chunk) {
+            Ok(0) => return Ok(()),
+            Ok(count) => buffer
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .extend_from_slice(&chunk[..count]),
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 fn wait_for_exit(child: &mut Child, timeout: Duration, context: &str) -> AppResult<ExitStatus> {
@@ -191,17 +259,19 @@ fn terminate(child: &mut Child) {
 }
 
 fn collect_output(reader: OutputReader, remaining: Duration, context: &str) -> AppResult<String> {
+    match reader.finished.recv_timeout(remaining) {
+        Ok(result) => result.map_err(|error| command_error(context, error))?,
+        Err(RecvTimeoutError::Timeout) => {}
+        Err(RecvTimeoutError::Disconnected) => {
+            return Err(AppError::Command(format!(
+                "{context}: Ausgabe-Thread abgebrochen"
+            )));
+        }
+    }
     let bytes = reader
-        .recv_timeout(remaining)
-        .map_err(|error| match error {
-            RecvTimeoutError::Timeout => {
-                AppError::Timeout(format!("{context}: Ausgabe nicht abgeschlossen"))
-            }
-            RecvTimeoutError::Disconnected => {
-                AppError::Command(format!("{context}: Ausgabe-Thread abgebrochen"))
-            }
-        })?
-        .map_err(|error| command_error(context, error))?;
+        .bytes
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
@@ -212,6 +282,70 @@ fn command_error(context: &str, error: impl std::fmt::Display) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detection_reports_missing_executable_as_absent() {
+        assert!(
+            detect_version("winget-updater-nonexistent-test-command", &[])
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn detection_preserves_timeouts() {
+        #[cfg(windows)]
+        let output = run(
+            "powershell.exe",
+            &["-NoProfile", "-Command", "Start-Sleep 10"],
+            Duration::from_millis(100),
+        );
+        #[cfg(not(windows))]
+        let output = run("sh", &["-c", "sleep 10"], Duration::from_millis(100));
+        assert!(matches!(
+            version_from_output(output, "test"),
+            Err(AppError::Timeout(_))
+        ));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn missing_shim_is_absent_before_cmd_starts() {
+        assert!(
+            detect_version("winget-updater-nonexistent-shim.cmd", &[])
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn detection_rejects_unsuccessful_exit() {
+        #[cfg(windows)]
+        let output = run("cmd.exe", &["/D", "/C", "exit 3"], LIST_TIMEOUT);
+        #[cfg(not(windows))]
+        let output = run("sh", &["-c", "exit 3"], LIST_TIMEOUT);
+        assert!(
+            matches!(version_from_output(output, "test"), Err(AppError::Command(message)) if message.contains("3"))
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn inherited_pipes_do_not_delay_successful_child() {
+        let started = Instant::now();
+        let output = run(
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/inherited_pipes.cmd"
+            ),
+            &[],
+            Duration::from_secs(8),
+        )
+        .unwrap();
+        assert!(output.success);
+        assert!(output.stdout.contains("retained"));
+        assert!(started.elapsed() < Duration::from_secs(10));
+    }
 
     #[test]
     fn captures_stdout_stderr_and_failure_status() {
@@ -236,10 +370,10 @@ mod tests {
     }
 
     #[test]
-    fn missing_executable_has_command_context() {
+    fn missing_executable_is_unavailable() {
         let result = run("winget-updater-nonexistent-test-command", &[], LIST_TIMEOUT);
         assert!(
-            matches!(result, Err(AppError::Command(message)) if message.contains("winget-updater-nonexistent-test-command"))
+            matches!(result, Err(AppError::ManagerUnavailable(message)) if message.contains("winget-updater-nonexistent-test-command"))
         );
     }
 

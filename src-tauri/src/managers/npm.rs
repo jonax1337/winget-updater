@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use super::PackageManager;
+use super::{PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
 use crate::models::{ManagerId, Package};
 use crate::process::{self, LIST_TIMEOUT, UPDATE_TIMEOUT};
@@ -20,19 +20,19 @@ impl PackageManager for Npm {
         false
     }
 
-    fn detect(&self) -> Option<String> {
+    fn detect(&self) -> AppResult<Option<String>> {
         process::detect_version("npm", &["--version"])
     }
 
-    fn list_upgrades(&self, _include_unknown_versions: bool) -> AppResult<Vec<Package>> {
+    fn list_upgrades(&self, _include_unknown_versions: bool) -> AppResult<Upgrades> {
         let output = process::run("npm", &["outdated", "-g", "--json"], LIST_TIMEOUT)?;
         // npm exits with 1 for a nonempty outdated list, not just command failures.
         if !output.success && output.exit_code != Some(1) {
             return output
                 .ensure_success("npm outdated -g --json")
-                .map(|_| Vec::new());
+                .map(|_| Upgrades::default());
         }
-        parse_npm_outdated(&output.stdout)
+        parse_npm_outdated(&output.stdout).map(Upgrades::from)
     }
 
     fn upgrade(&self, package_id: &str) -> AppResult<()> {

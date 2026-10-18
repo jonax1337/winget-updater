@@ -35,7 +35,7 @@ export interface ScanResult {
   scannedAt: string;
 }
 
-export type UpdateStatus = "queued" | "running" | "succeeded" | "failed";
+export type UpdateStatus = "queued" | "running" | "succeeded" | "failed" | "skipped";
 
 export interface UpdateEvent {
   package: PackageRef;

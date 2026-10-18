@@ -73,13 +73,7 @@ fn store(app: &AppHandle) -> AppResult<Arc<Store<tauri::Wry>>> {
 }
 
 pub fn package_key(package: &PackageRef) -> String {
-    let manager = match package.manager {
-        crate::models::ManagerId::Winget => "winget",
-        crate::models::ManagerId::Scoop => "scoop",
-        crate::models::ManagerId::Chocolatey => "chocolatey",
-        crate::models::ManagerId::Npm => "npm",
-        crate::models::ManagerId::Pip => "pip",
-    };
+    let manager = package.manager.as_str();
     format!("{manager}:{}", package.id)
 }
 

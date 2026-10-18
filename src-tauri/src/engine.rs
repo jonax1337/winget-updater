@@ -139,7 +139,7 @@ pub async fn get_managers(app: &AppHandle) -> AppResult<Vec<ManagerInfo>> {
         Ok(managers::registry()
             .into_iter()
             .map(|manager| {
-                let version = manager.detect();
+                let version = manager.detect().ok().flatten();
                 ManagerInfo {
                     id: manager.id(),
                     name: manager.display_name().into(),
@@ -173,10 +173,7 @@ async fn scan_locked(app: &AppHandle) -> AppResult<ScanResult> {
         notify(
             app,
             "Updates verfügbar",
-            &format!(
-                "{} Pakete können aktualisiert werden.",
-                pending_count(&result)
-            ),
+            &available_updates_message(pending_count(&result)),
         );
     }
     Ok(result)
@@ -192,11 +189,10 @@ async fn collect_upgrades(preferences: &Settings) -> ScanResult {
         let include_unknown = preferences.include_unknown_versions;
         tasks.push((
             id,
-            tauri::async_runtime::spawn_blocking(move || {
-                if manager.detect().is_none() {
-                    return Ok(Vec::new());
-                }
-                manager.list_upgrades(include_unknown)
+            tauri::async_runtime::spawn_blocking(move || match manager.detect() {
+                Ok(None) => Ok(managers::Upgrades::default()),
+                Ok(Some(_)) => manager.list_upgrades(include_unknown),
+                Err(error) => Err(error),
             }),
         ));
     }
@@ -207,7 +203,15 @@ async fn collect_upgrades(preferences: &Settings) -> ScanResult {
     };
     for (manager, task) in tasks {
         match task.await {
-            Ok(Ok(packages)) => result.packages.extend(packages),
+            Ok(Ok(upgrades)) => {
+                result.packages.extend(upgrades.packages);
+                result.errors.extend(
+                    upgrades
+                        .warnings
+                        .into_iter()
+                        .map(|message| ManagerError { manager, message }),
+                );
+            }
             Ok(Err(error)) => result.errors.push(ManagerError {
                 manager,
                 message: error.to_string(),
@@ -245,7 +249,7 @@ fn store_scan(app: &AppHandle, result: &mut ScanResult) {
 pub async fn update(app: &AppHandle, packages: Vec<PackageRef>) -> AppResult<UpdateSummary> {
     let operation = Operation::begin(app, Activity::Update)?;
     let packages = resolve_packages(app, packages)?;
-    let result = update_locked(app, packages).await;
+    let result = update_locked(app, packages, UpdateMode::Manual).await;
     drop(operation);
     finish_update(app, result)
 }
@@ -253,7 +257,7 @@ pub async fn update(app: &AppHandle, packages: Vec<PackageRef>) -> AppResult<Upd
 pub async fn update_all(app: &AppHandle) -> AppResult<UpdateSummary> {
     let operation = Operation::begin(app, Activity::Update)?;
     let packages = automatic_packages(app);
-    let result = update_locked(app, packages).await;
+    let result = update_locked(app, packages, UpdateMode::Automatic).await;
     drop(operation);
     finish_update(app, result)
 }
@@ -265,7 +269,7 @@ pub async fn scheduled_cycle(app: &AppHandle) -> AppResult<()> {
         return Ok(());
     }
     set_updating(app);
-    let result = update_locked(app, automatic_packages(app)).await;
+    let result = update_locked(app, automatic_packages(app), UpdateMode::Automatic).await;
     drop(operation);
     finish_update(app, result).map(|_| ())
 }
@@ -315,7 +319,27 @@ struct UpdateRun {
     storage_error: Option<AppError>,
 }
 
-async fn update_locked(app: &AppHandle, packages: Vec<Package>) -> UpdateRun {
+enum UpdateMode {
+    Manual,
+    Automatic,
+}
+
+fn still_automatic(package: &Package, settings: &Settings) -> bool {
+    settings.enabled_managers.contains(&package.manager)
+        && !settings
+            .ignored_packages
+            .contains(&settings::package_key(&package_ref(package)))
+}
+
+fn available_updates_message(count: u32) -> String {
+    if count == 1 {
+        "1 Paket kann aktualisiert werden.".into()
+    } else {
+        format!("{count} Pakete können aktualisiert werden.")
+    }
+}
+
+async fn update_locked(app: &AppHandle, packages: Vec<Package>, mode: UpdateMode) -> UpdateRun {
     let mut run = UpdateRun {
         summary: UpdateSummary::default(),
         storage_error: None,
@@ -324,6 +348,15 @@ async fn update_locked(app: &AppHandle, packages: Vec<Package>) -> UpdateRun {
         publish_update(app, package, UpdateStatus::Queued, None);
     }
     for package in packages {
+        if matches!(mode, UpdateMode::Automatic) && !still_automatic(&package, &get_settings(app)) {
+            publish_update(
+                app,
+                &package,
+                UpdateStatus::Skipped,
+                Some("Übersprungen – inzwischen ignoriert oder Paketmanager deaktiviert".into()),
+            );
+            continue;
+        }
         update_one(app, package, &mut run).await;
     }
     if let Err(error) = scan_locked(app).await {
@@ -369,10 +402,10 @@ fn upgrade_package(package: PackageRef) -> AppResult<()> {
         .into_iter()
         .find(|manager| manager.id() == package.manager)
         .ok_or_else(|| AppError::ManagerUnavailable(settings::package_key(&package)))?;
-    if manager.detect().is_none() {
-        return Err(AppError::ManagerUnavailable(manager.display_name().into()));
+    match manager.detect()? {
+        None => Err(AppError::ManagerUnavailable(manager.display_name().into())),
+        Some(_) => manager.upgrade(&package.id),
     }
-    manager.upgrade(&package.id)
 }
 
 fn finish_update(app: &AppHandle, run: UpdateRun) -> AppResult<UpdateSummary> {
@@ -393,15 +426,26 @@ fn finish_update(app: &AppHandle, run: UpdateRun) -> AppResult<UpdateSummary> {
     }
 }
 
+const INSTALL_WINGET_MODULE: &str = "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; if (-not (Get-PackageProvider -ListAvailable -Name NuGet -ErrorAction SilentlyContinue | Where-Object { $_.Version -ge [version]'2.8.5.201' })) { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force | Out-Null }; Install-Module Microsoft.WinGet.Client -Scope CurrentUser -Force -AllowClobber";
+
 pub async fn install_winget_module(app: &AppHandle) -> AppResult<()> {
     let _operation = Operation::begin(app, Activity::Update)?;
     blocking(|| {
-        process::run("powershell.exe", &[
-            "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
-            "$ErrorActionPreference = 'Stop'; Install-Module Microsoft.WinGet.Client -Scope CurrentUser -Force",
-        ], Duration::from_secs(30 * 60))?.ensure_success("WinGet-Modul installieren")?;
+        process::run(
+            "powershell.exe",
+            &[
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                INSTALL_WINGET_MODULE,
+            ],
+            Duration::from_secs(30 * 60),
+        )?
+        .ensure_success("WinGet-Modul installieren")?;
         Ok(())
-    }).await
+    })
+    .await
 }
 
 pub fn set_next_scan(app: &AppHandle, next: String) {
@@ -531,5 +575,52 @@ impl Drop for Operation {
             snapshot.run.updating = false;
         }
         publish_run_state(&self.app);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn package() -> Package {
+        Package {
+            manager: ManagerId::Winget,
+            id: "Vendor.App".into(),
+            name: "App".into(),
+            current_version: "1".into(),
+            available_version: "2".into(),
+            source: None,
+            ignored: false,
+        }
+    }
+    #[test]
+    fn automatic_update_allows_enabled_package() {
+        assert!(still_automatic(&package(), &Settings::default()));
+    }
+    #[test]
+    fn automatic_update_rejects_ignored_package() {
+        let preferences = Settings {
+            ignored_packages: vec!["winget:Vendor.App".into()],
+            ..Settings::default()
+        };
+        assert!(!still_automatic(&package(), &preferences));
+    }
+    #[test]
+    fn automatic_update_rejects_disabled_manager() {
+        let preferences = Settings {
+            enabled_managers: vec![],
+            ..Settings::default()
+        };
+        assert!(!still_automatic(&package(), &preferences));
+    }
+    #[test]
+    fn notification_uses_singular_and_plural() {
+        assert_eq!(
+            available_updates_message(1),
+            "1 Paket kann aktualisiert werden."
+        );
+        assert_eq!(
+            available_updates_message(2),
+            "2 Pakete können aktualisiert werden."
+        );
     }
 }

@@ -10,6 +10,18 @@ pub enum ManagerId {
     Pip,
 }
 
+impl ManagerId {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Winget => "winget",
+            Self::Scoop => "scoop",
+            Self::Chocolatey => "chocolatey",
+            Self::Npm => "npm",
+            Self::Pip => "pip",
+        }
+    }
+}
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ManagerInfo {
@@ -60,6 +72,7 @@ pub struct ScanResult {
 #[serde(rename_all = "lowercase")]
 pub enum UpdateStatus {
     Queued,
+    Skipped,
     Running,
     Succeeded,
     Failed,
@@ -148,5 +161,26 @@ impl Default for Settings {
             ignored_packages: Vec::new(),
             theme: Theme::System,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn manager_names_match_serialization() {
+        for id in [
+            ManagerId::Winget,
+            ManagerId::Scoop,
+            ManagerId::Chocolatey,
+            ManagerId::Npm,
+            ManagerId::Pip,
+        ] {
+            assert_eq!(serde_json::to_value(id).unwrap(), id.as_str());
+        }
+        assert_eq!(
+            serde_json::to_value(UpdateStatus::Skipped).unwrap(),
+            "skipped"
+        );
     }
 }

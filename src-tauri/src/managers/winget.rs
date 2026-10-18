@@ -1,12 +1,12 @@
 use serde::Deserialize;
 
-use super::PackageManager;
+use super::{PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
 use crate::models::{ManagerId, Package};
 use crate::process::{self, CommandOutput, LIST_TIMEOUT, UPDATE_TIMEOUT};
 
 const NO_APPLICABLE_UPGRADE: u32 = 0x8A15002B;
-const POWERSHELL_PACKAGES: &str = r#"$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); if (-not (Get-Module -ListAvailable Microsoft.WinGet.Client)) { exit 42 }; Import-Module Microsoft.WinGet.Client; $packages=@(Get-WinGetPackage | Where-Object IsUpdateAvailable | Select-Object Id,Name,InstalledVersion,AvailableVersion,@{Name='Source';Expression={$_.Source.Name}}); ConvertTo-Json -InputObject $packages -Compress"#;
+const POWERSHELL_PACKAGES: &str = r#"$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); if (-not (Get-Module -ListAvailable Microsoft.WinGet.Client)) { exit 42 }; Import-Module Microsoft.WinGet.Client; $packages=@(Get-WinGetPackage | Where-Object IsUpdateAvailable | Select-Object Id,Name,InstalledVersion,@{Name='AvailableVersion';Expression={@($_.AvailableVersions)[0]}},Source); ConvertTo-Json -InputObject $packages -Compress"#;
 
 pub struct Winget;
 
@@ -21,11 +21,12 @@ impl PackageManager for Winget {
         false
     }
 
-    fn detect(&self) -> Option<String> {
+    fn detect(&self) -> AppResult<Option<String>> {
         process::detect_version("winget", &["--version"])
     }
 
-    fn list_upgrades(&self, include_unknown_versions: bool) -> AppResult<Vec<Package>> {
+    fn list_upgrades(&self, include_unknown_versions: bool) -> AppResult<Upgrades> {
+        let mut warnings = Vec::new();
         if let Ok(output) = process::run(
             "powershell.exe",
             &[
@@ -37,11 +38,17 @@ impl PackageManager for Winget {
             LIST_TIMEOUT,
         ) && output.success
         {
-            let mut packages = parse_powershell_packages(&output.stdout)?;
-            if !include_unknown_versions {
-                packages.retain(|package| !unknown_version(&package.current_version));
+            match parse_powershell_packages(&output.stdout) {
+                Ok(mut packages) => {
+                    if !include_unknown_versions {
+                        packages.retain(|package| !unknown_version(&package.current_version));
+                    }
+                    return Ok(packages.into());
+                }
+                Err(error) => warnings.push(format!(
+                    "WinGet-PowerShell-Ausgabe nicht lesbar – Tabellen-Fallback genutzt: {error}"
+                )),
             }
-            return Ok(packages);
         }
         let mut args = vec![
             "upgrade",
@@ -53,31 +60,43 @@ impl PackageManager for Winget {
         }
         let output = process::run("winget", &args, LIST_TIMEOUT)?;
         if no_applicable_upgrade(&output) {
-            return Ok(Vec::new());
+            return Ok(Upgrades {
+                packages: Vec::new(),
+                warnings,
+            });
         }
         let output = output.ensure_success("winget upgrade")?;
-        parse_winget_table(&output.stdout)
+        let mut upgrades = parse_winget_table(&output.stdout)?;
+        upgrades.warnings.extend(warnings);
+        Ok(upgrades)
     }
 
     fn upgrade(&self, package_id: &str) -> AppResult<()> {
         process::validate_package_id(package_id)?;
-        let args = [
-            "upgrade",
-            "--id",
-            package_id,
-            "--exact",
-            "--silent",
-            "--accept-package-agreements",
-            "--accept-source-agreements",
-            "--disable-interactivity",
-        ];
+        let args = upgrade_args(package_id);
         let output = process::run("winget", &args, UPDATE_TIMEOUT)?;
         if no_applicable_upgrade(&output) {
-            return Ok(());
+            return Err(AppError::Command(
+                "winget upgrade: Kein anwendbares Upgrade gefunden (0x8A15002B)".into(),
+            ));
         }
         output.ensure_success("winget upgrade")?;
         Ok(())
     }
+}
+
+fn upgrade_args(id: &str) -> Vec<&str> {
+    vec![
+        "upgrade",
+        "--id",
+        id,
+        "--exact",
+        "--silent",
+        "--accept-package-agreements",
+        "--accept-source-agreements",
+        "--disable-interactivity",
+        "--include-unknown",
+    ]
 }
 
 fn no_applicable_upgrade(output: &CommandOutput) -> bool {
@@ -97,7 +116,7 @@ struct PowershellPackage {
     id: String,
     name: String,
     installed_version: Option<String>,
-    available_version: String,
+    available_version: Option<String>,
     source: Option<String>,
 }
 
@@ -110,24 +129,30 @@ fn parse_powershell_packages(output: &str) -> AppResult<Vec<Package>> {
         serde_json::Value::Array(rows) => rows,
         value => vec![value],
     };
-    rows.into_iter()
-        .map(|row| {
-            let row: PowershellPackage = serde_json::from_value(row)
-                .map_err(|error| AppError::Parse(format!("WinGet-PowerShell-Paket: {error}")))?;
-            Ok(Package {
-                manager: ManagerId::Winget,
-                id: row.id,
-                name: row.name,
-                current_version: row.installed_version.unwrap_or_else(|| "Unknown".into()),
-                available_version: row.available_version,
-                source: row.source.filter(|source| !source.is_empty()),
-                ignored: false,
-            })
-        })
-        .collect()
+    let mut packages = Vec::new();
+    for row in rows {
+        let row: PowershellPackage = serde_json::from_value(row)
+            .map_err(|error| AppError::Parse(format!("WinGet-PowerShell-Paket: {error}")))?;
+        let Some(available_version) = row
+            .available_version
+            .filter(|value| !value.trim().is_empty())
+        else {
+            continue;
+        };
+        packages.push(Package {
+            manager: ManagerId::Winget,
+            id: row.id,
+            name: row.name,
+            current_version: row.installed_version.unwrap_or_else(|| "Unknown".into()),
+            available_version,
+            source: row.source.filter(|source| !source.is_empty()),
+            ignored: false,
+        });
+    }
+    Ok(packages)
 }
 
-fn parse_winget_table(output: &str) -> AppResult<Vec<Package>> {
+fn parse_winget_table(output: &str) -> AppResult<Upgrades> {
     let clean = strip_terminal_sequences(output);
     let lines: Vec<_> = clean
         .split(['\r', '\n'])
@@ -135,7 +160,7 @@ fn parse_winget_table(output: &str) -> AppResult<Vec<Package>> {
         .collect();
     let Some(separator) = lines.iter().position(|line| is_separator(line)) else {
         if is_empty_upgrade_list(&clean) {
-            return Ok(Vec::new());
+            return Ok(Upgrades::default());
         }
         return Err(AppError::Parse("WinGet: Tabellenkopf fehlt".into()));
     };
@@ -150,15 +175,26 @@ fn parse_winget_table(output: &str) -> AppResult<Vec<Package>> {
         ));
     }
     let mut packages = Vec::new();
+    let mut truncated = 0;
     for line in &lines[separator + 1..] {
         let Some(package) = parse_table_row(line, &columns) else {
             break;
         };
         if !package.id.contains(['…', '�']) && !package.id.ends_with("...") {
             packages.push(package);
+        } else {
+            truncated += 1;
         }
     }
-    Ok(packages)
+    let warnings = if truncated == 0 {
+        Vec::new()
+    } else {
+        let noun = if truncated == 1 { "Paket" } else { "Pakete" };
+        vec![format!(
+            "{truncated} {noun} mit abgeschnittener ID – WinGet-PowerShell-Modul installieren"
+        )]
+    };
+    Ok(Upgrades { packages, warnings })
 }
 
 fn strip_terminal_sequences(output: &str) -> String {
@@ -245,8 +281,9 @@ mod tests {
 
     #[test]
     fn parses_real_german_output_and_stops_at_summary() {
-        let packages =
-            parse_winget_table(include_str!("../../tests/fixtures/winget_upgrade.txt")).unwrap();
+        let packages = parse_winget_table(include_str!("../../tests/fixtures/winget_upgrade.txt"))
+            .unwrap()
+            .packages;
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].id, "Microsoft.WSL");
         assert_eq!(packages[0].current_version, "2.7.3.0");
@@ -255,8 +292,9 @@ mod tests {
 
     #[test]
     fn parses_localized_headers_by_character_position() {
-        let packages =
-            parse_winget_table(include_str!("../../tests/fixtures/winget_english.txt")).unwrap();
+        let packages = parse_winget_table(include_str!("../../tests/fixtures/winget_english.txt"))
+            .unwrap()
+            .packages;
         assert_eq!(packages.len(), 2);
         assert_eq!(packages[0].name, "Müller Werkzeug");
         assert_eq!(packages[0].id, "Vendor.Mueller");
@@ -267,13 +305,18 @@ mod tests {
     fn discards_spinner_and_ansi_prefix() {
         let table = include_str!("../../tests/fixtures/winget_english.txt");
         let output = format!("\u{1b}[?25l\r-\r\\\r|\r/\r ███▒▒ 50%\r\n{table}\u{1b}[?25h");
-        assert_eq!(parse_winget_table(&output).unwrap().len(), 2);
+        assert_eq!(parse_winget_table(&output).unwrap().packages.len(), 2);
     }
 
     #[test]
     fn skips_truncated_ids_and_keeps_following_rows() {
-        let packages =
+        let upgrades =
             parse_winget_table(include_str!("../../tests/fixtures/winget_truncated.txt")).unwrap();
+        assert_eq!(
+            upgrades.warnings,
+            vec!["1 Paket mit abgeschnittener ID – WinGet-PowerShell-Modul installieren"]
+        );
+        let packages = upgrades.packages;
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].id, "Vendor.Complete");
     }
@@ -283,11 +326,13 @@ mod tests {
         assert!(
             parse_winget_table("Keine verfügbaren Upgrades")
                 .unwrap()
+                .packages
                 .is_empty()
         );
         assert!(
             parse_winget_table("No available upgrades found.")
                 .unwrap()
+                .packages
                 .is_empty()
         );
     }
@@ -310,6 +355,24 @@ mod tests {
         assert!(parse_powershell_packages("null").unwrap().is_empty());
         assert!(parse_powershell_packages("[]").unwrap().is_empty());
         assert!(parse_powershell_packages("{}").is_err());
+    }
+
+    #[test]
+    fn projected_powershell_null_versions_are_skipped() {
+        let output = r#"[{"Id":"Vendor.App","Name":"App","InstalledVersion":"1","AvailableVersion":"2","Source":"winget"},{"Id":"Vendor.Empty","Name":"Empty","InstalledVersion":"1","AvailableVersion":null,"Source":"winget"},{"Id":"Vendor.Blank","Name":"Blank","InstalledVersion":"1","AvailableVersion":"  ","Source":"winget"}]"#;
+        let packages = parse_powershell_packages(output).unwrap();
+        assert_eq!(packages.len(), 1);
+        assert_eq!(packages[0].available_version, "2");
+        assert_eq!(packages[0].source.as_deref(), Some("winget"));
+        assert!(POWERSHELL_PACKAGES.contains("@($_.AvailableVersions)[0]"));
+    }
+
+    #[test]
+    fn upgrade_arguments_are_exact_and_include_unknown() {
+        let args = upgrade_args("Vendor.App");
+        assert!(args.contains(&"--include-unknown"));
+        assert!(args.contains(&"--exact"));
+        assert!(args.windows(2).any(|pair| pair == ["--id", "Vendor.App"]));
     }
 
     #[test]

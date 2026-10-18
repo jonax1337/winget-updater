@@ -52,7 +52,7 @@ Kein Manager ruft `std::process::Command` direkt auf.
 |-------|--------|
 | `models.rs` | **Vertrag** – alle serialisierbaren Typen (nicht ohne Not ändern) |
 | `error.rs` | **Vertrag** – `AppError` |
-| `managers/mod.rs` | **Vertrag** – Trait `PackageManager`, `registry()` |
+| `managers/mod.rs` | **Vertrag** – Trait `PackageManager` (`detect() -> AppResult<Option<String>>`, `list_upgrades() -> AppResult<Upgrades { packages, warnings }>`), `registry()` |
 | `managers/{winget,scoop,chocolatey,npm,pip}.rs` | je ein Manager inkl. Parser + Unit-Tests |
 | `process.rs` | Prozess-Runner |
 | `icons.rs` | App-Icons aus Registry (`Uninstall`-Keys HKLM/HKCU/WOW6432, `DisplayIcon`) → PNG 32×32 → Data-URL, Disk-Cache im App-Cache-Dir |
@@ -103,6 +103,8 @@ Alle Commands: `Result<T, AppError>`; `AppError` serialisiert als `{ kind, messa
 - Während ein Scan/Update läuft, werden weitere Starts abgewiesen (`AppError::Busy`).
 - Benachrichtigung (wenn `notify`): nach Scan mit Treffern ohne Auto-Update, nach jedem Update-Lauf
   (Anzahl erfolgreich/fehlgeschlagen).
+- Pakete, die zwischen Planung und Ausführung eines automatischen Laufs ignoriert oder deaktiviert werden, erhalten den Status `skipped`.
+- Manager-Warnungen (z. B. abgeschnittene winget-IDs) landen als `ManagerError` im `ScanResult`.
 - Ignorierte Pakete: Schlüssel `"<manager>:<id>"` in `Settings.ignored_packages`; werden gelistet
   (`ignored: true`), aber nie automatisch aktualisiert.
 

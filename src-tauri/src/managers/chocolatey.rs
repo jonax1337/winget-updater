@@ -1,4 +1,4 @@
-use super::PackageManager;
+use super::{PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
 use crate::models::{ManagerId, Package};
 use crate::process::{self, LIST_TIMEOUT, UPDATE_TIMEOUT};
@@ -16,19 +16,19 @@ impl PackageManager for Chocolatey {
         true
     }
 
-    fn detect(&self) -> Option<String> {
+    fn detect(&self) -> AppResult<Option<String>> {
         process::detect_version("choco", &["--version"])
     }
 
-    fn list_upgrades(&self, _include_unknown_versions: bool) -> AppResult<Vec<Package>> {
+    fn list_upgrades(&self, _include_unknown_versions: bool) -> AppResult<Upgrades> {
         let output = process::run("choco", &["outdated", "-r"], LIST_TIMEOUT)?;
         // Chocolatey's enhanced exit codes use 2 when outdated packages were found.
         if !output.success && output.exit_code != Some(2) {
             return output
                 .ensure_success("choco outdated -r")
-                .map(|_| Vec::new());
+                .map(|_| Upgrades::default());
         }
-        parse_chocolatey_outdated(&output.stdout)
+        parse_chocolatey_outdated(&output.stdout).map(Upgrades::from)
     }
 
     fn upgrade(&self, package_id: &str) -> AppResult<()> {

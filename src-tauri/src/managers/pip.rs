@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::PackageManager;
+use super::{PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
 use crate::models::{ManagerId, Package};
 use crate::process::{self, LIST_TIMEOUT, UPDATE_TIMEOUT};
@@ -18,18 +18,26 @@ impl PackageManager for Pip {
         false
     }
 
-    fn detect(&self) -> Option<String> {
-        process::detect_version("python", &["-m", "pip", "--version"])
+    fn detect(&self) -> AppResult<Option<String>> {
+        match process::run("python", &["-m", "pip", "--version"], LIST_TIMEOUT) {
+            Ok(output) if output.success => Ok(output
+                .stdout
+                .lines()
+                .find(|line| !line.trim().is_empty())
+                .map(|line| line.trim().to_owned())),
+            Ok(_) | Err(AppError::ManagerUnavailable(_)) => Ok(None),
+            Err(error) => Err(error),
+        }
     }
 
-    fn list_upgrades(&self, _include_unknown_versions: bool) -> AppResult<Vec<Package>> {
+    fn list_upgrades(&self, _include_unknown_versions: bool) -> AppResult<Upgrades> {
         let output = process::run(
             "python",
             &["-m", "pip", "list", "--outdated", "--format=json", "--user"],
             LIST_TIMEOUT,
         )?
         .ensure_success("python -m pip list --outdated")?;
-        parse_pip_outdated(&output.stdout)
+        parse_pip_outdated(&output.stdout).map(Upgrades::from)
     }
 
     fn upgrade(&self, package_id: &str) -> AppResult<()> {
