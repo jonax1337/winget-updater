@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, ToSocketAddrs};
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -58,13 +58,44 @@ fn redirect_target(current: &Url, response: &Response<Body>) -> Option<Url> {
 
 /// URLs come from third-party metadata, so they must not reach the local machine or network.
 fn is_public_web_url(url: &Url) -> bool {
+    is_public_web_url_with(url, resolve)
+}
+
+// A short DNS-rebinding window remains between this check and ureq's own lookup.
+fn is_public_web_url_with(url: &Url, resolve: impl Fn(&str, u16) -> Vec<IpAddr>) -> bool {
     has_web_scheme(url)
         && match url.host() {
-            Some(Host::Domain(domain)) => !is_localhost(domain),
+            Some(Host::Domain(domain)) => {
+                !is_localhost(domain)
+                    && resolves_to_public_addresses(&resolve(domain, port_of(url)))
+            }
             Some(Host::Ipv4(address)) => !is_internal_ipv4(address),
             Some(Host::Ipv6(address)) => !is_internal_ipv6(address),
             None => false,
         }
+}
+
+fn resolve(domain: &str, port: u16) -> Vec<IpAddr> {
+    (domain, port)
+        .to_socket_addrs()
+        .map(|addresses| addresses.map(|address| address.ip()).collect())
+        .unwrap_or_default()
+}
+
+fn port_of(url: &Url) -> u16 {
+    url.port_or_known_default().unwrap_or(80)
+}
+
+/// One internal address is enough to reject a name; an unresolvable name is rejected too.
+fn resolves_to_public_addresses(addresses: &[IpAddr]) -> bool {
+    !addresses.is_empty() && !addresses.iter().copied().any(is_internal_ip)
+}
+
+fn is_internal_ip(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(address) => is_internal_ipv4(address),
+        IpAddr::V6(address) => is_internal_ipv6(address),
+    }
 }
 
 fn is_localhost(domain: &str) -> bool {
@@ -82,13 +113,23 @@ fn is_internal_ipv4(address: Ipv4Addr) -> bool {
 }
 
 fn is_internal_ipv6(address: Ipv6Addr) -> bool {
-    if let Some(mapped) = address.to_ipv4_mapped() {
-        return is_internal_ipv4(mapped);
+    if address.is_loopback() || address.is_unspecified() {
+        return true;
     }
-    address.is_loopback()
-        || address.is_unspecified()
-        || address.is_unique_local()
-        || address.is_unicast_link_local()
+    if let Some(embedded) = embedded_ipv4(address) {
+        return is_internal_ipv4(embedded);
+    }
+    address.is_unique_local() || address.is_unicast_link_local()
+}
+
+/// IPv4-mapped, IPv4-compatible and NAT64 (64:ff9b::/96) addresses reach an IPv4 host.
+fn embedded_ipv4(address: Ipv6Addr) -> Option<Ipv4Addr> {
+    const NAT64_PREFIX: [u16; 6] = [0x64, 0xff9b, 0, 0, 0, 0];
+    if address.segments()[..6] == NAT64_PREFIX {
+        let [.., a, b, c, d] = address.octets();
+        return Some(Ipv4Addr::new(a, b, c, d));
+    }
+    address.to_ipv4()
 }
 
 fn has_web_scheme(url: &Url) -> bool {
@@ -116,8 +157,38 @@ mod tests {
         assert!(parse_web_url("not a url").is_none());
     }
 
+    const PUBLIC_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34));
+
+    /// Every domain resolves to a public address, so tests never touch the network.
     fn is_public(text: &str) -> bool {
-        is_public_web_url(&Url::parse(text).unwrap())
+        is_public_web_url_with(&Url::parse(text).unwrap(), |_, _| vec![PUBLIC_ADDRESS])
+    }
+
+    fn is_public_resolving_to(addresses: &[&str]) -> bool {
+        let addresses: Vec<IpAddr> = addresses.iter().map(|text| text.parse().unwrap()).collect();
+        is_public_web_url_with(&Url::parse("https://example.org/").unwrap(), |_, _| {
+            addresses.clone()
+        })
+    }
+
+    #[test]
+    fn domains_resolving_to_internal_addresses_are_rejected() {
+        assert!(!is_public_resolving_to(&["127.0.0.1"]));
+        assert!(!is_public_resolving_to(&["192.168.1.1"]));
+        assert!(!is_public_resolving_to(&["93.184.216.34", "10.0.0.1"]));
+        assert!(!is_public_resolving_to(&["::1"]));
+        assert!(!is_public_resolving_to(&[]));
+        assert!(is_public_resolving_to(&["93.184.216.34", "2606:4700:4700::1111"]));
+    }
+
+    #[test]
+    fn resolver_receives_the_effective_port() {
+        let port_seen = std::cell::Cell::new(0);
+        is_public_web_url_with(&Url::parse("https://example.org/").unwrap(), |_, port| {
+            port_seen.set(port);
+            vec![PUBLIC_ADDRESS]
+        });
+        assert_eq!(port_seen.get(), 443);
     }
 
     #[test]
@@ -166,10 +237,15 @@ mod tests {
             "::ffff:127.0.0.1",
             "::ffff:192.168.0.1",
             "::ffff:100.64.0.1",
+            "::127.0.0.1",
+            "::192.168.0.1",
+            "64:ff9b::7f00:1",
+            "64:ff9b::c0a8:101",
         ] {
             assert!(!is_public(&format!("http://[{host}]/")), "{host}");
         }
         assert!(is_public("http://[::ffff:93.184.216.34]/"));
+        assert!(is_public("http://[64:ff9b::5db8:d822]/"));
     }
 
     #[test]
