@@ -20,6 +20,28 @@ pnpm lint
 cargo test --manifest-path src-tauri/Cargo.toml --lib
 ```
 
+## Releasing
+
+Installed copies update themselves: the app checks GitHub Releases once a day and offers a one-click update. Releases are built by the [release workflow](.github/workflows/release.yml) when a `v*` tag is pushed.
+
+```sh
+pnpm version:set 1.2.3
+git commit -am "chore: release v1.2.3"
+git tag v1.2.3
+git push origin main v1.2.3
+```
+
+`pnpm version:set` updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json`. The workflow fails unless the tag matches the version in `package.json`, `Cargo.toml` and `tauri.conf.json`, then publishes the NSIS installer, its signature, and `latest.json` as a GitHub Release.
+
+One-time setup in the repository settings (Secrets and variables, Actions):
+
+- `TAURI_SIGNING_PRIVATE_KEY`: the content of the updater signing key file (`%USERPROFILE%\.tauri\winget-updater.key`). Its public half is `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: not needed while the key has no password. Leave it unset.
+
+Keep the private key out of the repository. Losing it means installed copies can no longer verify updates, so back it up.
+
+The installer is not Authenticode-signed, so Windows SmartScreen may warn when it is run for the first time.
+
 ## Branding
 
 The WU monogram combines the app's initials with an upward arrow. Lime, graphite, and chalk define the palette; Geist and Geist Mono are the brand fonts.
