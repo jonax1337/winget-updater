@@ -2,6 +2,7 @@ import { useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { Info } from "lucide-react";
 import { AppSidebar, type Page } from "@/components/app-sidebar";
+import { AppUpdateNotice } from "@/components/app-update-notice";
 import { SiteHeader } from "@/components/site-header";
 import { TitleBar } from "@/components/title-bar";
 import { UpdateProgress } from "@/components/update-progress";
@@ -10,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AppUpdateProvider } from "@/hooks/use-app-update";
 import { UpdaterProvider, useUpdater } from "@/hooks/use-updater";
 import { Catalog } from "@/pages/catalog";
 import { History } from "@/pages/history";
@@ -22,7 +24,9 @@ function App() {
   return (
     <TooltipProvider delayDuration={250}>
       <UpdaterProvider>
-        <AppLayout />
+        <AppUpdateProvider>
+          <AppLayout />
+        </AppUpdateProvider>
       </UpdaterProvider>
     </TooltipProvider>
   );
@@ -73,6 +77,7 @@ function Notices() {
           </AlertDescription>
         </Alert>
       )}
+      <AppUpdateNotice />
       <UpdateProgress />
     </div>
   );

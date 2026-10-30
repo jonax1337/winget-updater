@@ -26,6 +26,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             commands::get_managers,
             commands::scan_updates,
@@ -47,6 +48,8 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle();
+            #[cfg(desktop)]
+            handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             let preferences = settings::initialize(handle)?;
             history::initialize(handle)?;
             engine::apply_autostart(handle, preferences.autostart)?;

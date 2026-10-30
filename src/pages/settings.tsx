@@ -1,5 +1,7 @@
 import { Fragment, useState, type ReactNode } from "react";
-import { Check, Download, EyeOff, Trash2 } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
+import { isTauri } from "@tauri-apps/api/core";
+import { Check, Download, EyeOff, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Combobox } from "@/components/combobox";
 import { ResourceError } from "@/components/resource-error";
@@ -35,6 +37,8 @@ import {
 } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { useAppUpdate } from "@/hooks/use-app-update";
+import { useResource } from "@/hooks/use-resource";
 import { useUpdater } from "@/hooks/use-updater";
 import { installWingetModule, toAppError } from "@/lib/api";
 import { managerVersionLabel, packageKey, parsePackageKey } from "@/lib/packages";
@@ -62,6 +66,7 @@ export function SettingsPage() {
           <IgnoredPackages current={current} />
         </>
       )}
+      {isTauri() && <AppUpdates />}
     </div>
   );
 }
@@ -270,6 +275,40 @@ function InstallWingetModule({ id, describedBy }: { id: string; describedBy: str
       {installing ? <Spinner data-icon="inline-start" /> : <Download data-icon="inline-start" />}
       Install
     </Button>
+  );
+}
+
+function AppUpdates() {
+  const { data: version } = useResource(getVersion, "");
+  const { update, checking, installing, checkManually } = useAppUpdate();
+  const description = update
+    ? `Version ${update.version} is available.`
+    : `Current version ${version || "unknown"}.`;
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>App updates</CardTitle>
+        <CardDescription>Winget Updater checks for new versions once a day.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup>
+          <SettingField label="Winget Updater" description={description}>
+            {(ids) => (
+              <Button
+                id={ids.control}
+                variant="outline"
+                aria-describedby={ids.description}
+                disabled={checking || installing}
+                onClick={() => void checkManually()}
+              >
+                {checking ? <Spinner data-icon="inline-start" /> : <RefreshCw data-icon="inline-start" />}
+                Check for updates
+              </Button>
+            )}
+          </SettingField>
+        </FieldGroup>
+      </CardContent>
+    </Card>
   );
 }
 
