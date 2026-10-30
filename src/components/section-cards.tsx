@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RelativeTime } from "@/components/relative-time";
+import { plural } from "@/lib/format";
 import { useUpdater } from "@/hooks/use-updater";
 import type { Settings } from "@/lib/types";
 
@@ -21,40 +22,40 @@ export function SectionCards() {
   return (
     <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
       <SectionCard
-        label="Verfügbare Updates"
+        label="Available updates"
         icon={<PackageCheck />}
         loading={loading}
         value={scan.scan ? actionable.length : "—"}
-        footer={ignored ? `${ignored} ignoriert` : "Bereit zur Aktualisierung"}
+        footer={ignored ? `${ignored} ignored` : "Ready to update"}
       />
       <SectionCard
-        label="Letzte Prüfung"
+        label="Last check"
         icon={<Clock3 />}
         loading={loading}
         value={
           <RelativeTime
             timestamp={run.state.lastScan ?? scan.scan?.scannedAt ?? null}
-            fallback="Noch keine"
+            fallback="Never"
           />
         }
-        footer={scanning ? "Neue Versionen werden gesucht …" : "Alle aktiven Paketmanager"}
+        footer={scanning ? "Checking for new versions …" : "All enabled package managers"}
       />
       <SectionCard
-        label="Nächste Prüfung"
+        label="Next check"
         icon={<CalendarClock />}
         loading={run.loading}
         value={<RelativeTime timestamp={run.state.nextScan} />}
         footer={scheduleLabel(current)}
       />
       <SectionCard
-        label="Automatische Updates"
+        label="Automatic updates"
         icon={<ShieldCheck />}
         loading={settings.loading}
         value={autoUpdateLabel(current?.autoUpdate)}
         footer={
           current?.autoUpdate
-            ? "Updates ohne manuelles Eingreifen"
-            : "Du startest jede Aktualisierung"
+            ? "Updates run automatically"
+            : "You start each update"
         }
       />
     </div>
@@ -91,12 +92,12 @@ function SectionCard({
 }
 
 function autoUpdateLabel(enabled?: boolean): string {
-  if (enabled === undefined) return "Nicht verbunden";
-  return enabled ? "Aktiv" : "Aus";
+  if (enabled === undefined) return "Not connected";
+  return enabled ? "Active" : "Off";
 }
 
 function scheduleLabel(settings?: Settings): string {
-  if (!settings) return "Zeitplan wird geladen";
-  if (settings.periodicChecks) return `Automatisch alle ${settings.checkIntervalHours} Stunden`;
-  return settings.updateOnStartup ? "Nur beim Anmelden" : "Nur manuell";
+  if (!settings) return "Loading schedule";
+  if (settings.periodicChecks) return `Every ${plural(settings.checkIntervalHours, "hour", "hours")}`;
+  return settings.updateOnStartup ? "At sign-in only" : "Manual only";
 }

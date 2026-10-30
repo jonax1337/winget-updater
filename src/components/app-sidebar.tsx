@@ -14,11 +14,11 @@ import { useUpdater } from "@/hooks/use-updater";
 export type Page = "overview" | "updates" | "software" | "history" | "settings";
 
 export const PAGE_TITLES: Record<Page, string> = {
-  overview: "Übersicht",
+  overview: "Overview",
   updates: "Updates",
   software: "Software",
-  history: "Verlauf",
-  settings: "Einstellungen",
+  history: "History",
+  settings: "Settings",
 };
 
 export function AppSidebar({

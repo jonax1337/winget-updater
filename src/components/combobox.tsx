@@ -60,9 +60,9 @@ export function Combobox<T extends string>({
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-44 p-0">
         <Command>
-          {searchable && <CommandInput placeholder="Suchen …" />}
+          {searchable && <CommandInput placeholder="Search …" />}
           <CommandList>
-            <CommandEmpty>Keine Treffer.</CommandEmpty>
+            <CommandEmpty>No results.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem

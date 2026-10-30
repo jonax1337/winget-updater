@@ -12,7 +12,7 @@ import {
 import { useUpdater } from "@/hooks/use-updater";
 import { MANAGER_NAMES, type NamedPackageRef } from "@/lib/packages";
 
-/** The ⋮ menu of a package; `children` are the page-specific items above "Deinstallieren". */
+/** The ⋮ menu of a package; `children` are the page-specific items above "Uninstall". */
 export function PackageMenu({
   entry,
   onUninstalled,
@@ -38,7 +38,7 @@ export function PackageMenu({
             variant="ghost"
             size="icon"
             className="size-8 text-muted-foreground data-[state=open]:bg-muted"
-            aria-label={`Aktionen für ${entry.name}`}
+            aria-label={`Actions for ${entry.name}`}
           >
             <EllipsisVertical />
           </Button>
@@ -52,16 +52,16 @@ export function PackageMenu({
             onSelect={() => setConfirming(true)}
           >
             <Trash2 />
-            Deinstallieren
+            Uninstall
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <ConfirmAction
         open={confirming}
         onOpenChange={setConfirming}
-        title={`${entry.name} deinstallieren?`}
-        description={`${entry.name} wird über ${MANAGER_NAMES[entry.manager]} entfernt. Das lässt sich nicht rückgängig machen.`}
-        confirm="Deinstallieren"
+        title={`Uninstall ${entry.name}?`}
+        description={`This removes ${entry.name} using ${MANAGER_NAMES[entry.manager]}. This cannot be undone.`}
+        confirm="Uninstall"
         onConfirm={() => void uninstallAndReport()}
       />
     </>

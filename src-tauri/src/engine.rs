@@ -81,7 +81,7 @@ async fn persist_settings(app: &AppHandle, preferences: Settings) -> AppResult<S
     if let Err(error) = result {
         if let Err(rollback) = apply_autostart(app, previous.autostart) {
             return Err(AppError::Storage(format!(
-                "{error}; Autostart nicht wiederhergestellt: {rollback}"
+                "{error}; could not restore autostart: {rollback}"
             )));
         }
         return Err(error);
@@ -177,7 +177,7 @@ async fn scan_locked(app: &AppHandle) -> AppResult<ScanResult> {
     if current.notify && !current.auto_update && pending_count(&result) > 0 {
         notify(
             app,
-            "Updates verfügbar",
+            "Updates available",
             &available_updates_message(pending_count(&result)),
         );
     }
@@ -207,7 +207,7 @@ async fn query_enabled_managers<T: Default + Send + 'static>(
     for (manager, task) in tasks {
         let outcome = task
             .await
-            .unwrap_or_else(|error| Err(AppError::Other(format!("Prüfung abgebrochen: {error}"))));
+            .unwrap_or_else(|error| Err(AppError::Other(format!("Check aborted: {error}"))));
         outcomes.push((manager, outcome));
     }
     outcomes
@@ -356,7 +356,10 @@ fn resolve_packages(app: &AppHandle, requested: Vec<PackageRef>) -> AppResult<Ve
                 .find(|package| package_ref(package) == reference)
         });
         let package = found.ok_or_else(|| {
-            AppError::Other(format!("Paket nicht im letzten Scan: {}", reference.id))
+            AppError::Other(format!(
+                "Package not found in the last scan: {}",
+                reference.id
+            ))
         })?;
         packages.push(package.clone());
     }
@@ -382,9 +385,9 @@ fn still_automatic(package: &Package, settings: &Settings) -> bool {
 
 fn available_updates_message(count: u32) -> String {
     if count == 1 {
-        "1 Paket kann aktualisiert werden.".into()
+        "1 package can be updated.".into()
     } else {
-        format!("{count} Pakete können aktualisiert werden.")
+        format!("{count} packages can be updated.")
     }
 }
 
@@ -402,7 +405,7 @@ async fn update_locked(app: &AppHandle, packages: Vec<Package>, mode: UpdateMode
                 app,
                 &package,
                 UpdateStatus::Skipped,
-                Some("Übersprungen – inzwischen ignoriert oder Paketmanager deaktiviert".into()),
+                Some("Skipped – package is now ignored or its source is disabled".into()),
             );
             continue;
         }
@@ -492,9 +495,9 @@ fn finish_update(app: &AppHandle, run: UpdateRun) -> AppResult<UpdateSummary> {
     if get_settings(app).notify {
         notify(
             app,
-            "Aktualisierung abgeschlossen",
+            "Update complete",
             &format!(
-                "{} erfolgreich, {} fehlgeschlagen.",
+                "{} succeeded, {} failed.",
                 run.summary.succeeded, run.summary.failed
             ),
         );
@@ -569,7 +572,7 @@ async fn blocking<T: Send + 'static>(
 ) -> AppResult<T> {
     tauri::async_runtime::spawn_blocking(work)
         .await
-        .map_err(|error| AppError::Other(format!("Hintergrundaufgabe abgebrochen: {error}")))?
+        .map_err(|error| AppError::Other(format!("Background task aborted: {error}")))?
 }
 
 fn publish_run_state(app: &AppHandle) {
@@ -595,19 +598,19 @@ fn publish_update(
 
 fn emit(app: &AppHandle, event: &str, payload: impl Serialize + Clone) {
     if let Err(error) = app.emit(event, payload) {
-        eprintln!("Ereignis {event} konnte nicht gesendet werden: {error}");
+        eprintln!("Could not send event {event}: {error}");
     }
 }
 
 fn refresh_tray(app: &AppHandle) {
     if let Err(error) = tray::show_pending_updates(app, get_run_state(app).pending_updates) {
-        eprintln!("Tray konnte nicht aktualisiert werden: {error}");
+        eprintln!("Could not update tray: {error}");
     }
 }
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
     if let Err(error) = app.notification().builder().title(title).body(body).show() {
-        eprintln!("Benachrichtigung konnte nicht angezeigt werden: {error}");
+        eprintln!("Could not show notification: {error}");
     }
 }
 
@@ -735,13 +738,7 @@ mod tests {
     }
     #[test]
     fn notification_uses_singular_and_plural() {
-        assert_eq!(
-            available_updates_message(1),
-            "1 Paket kann aktualisiert werden."
-        );
-        assert_eq!(
-            available_updates_message(2),
-            "2 Pakete können aktualisiert werden."
-        );
+        assert_eq!(available_updates_message(1), "1 package can be updated.");
+        assert_eq!(available_updates_message(2), "2 packages can be updated.");
     }
 }

@@ -66,11 +66,11 @@ fn parse_scoop_list(output: &str) -> AppResult<Installed> {
     }
     let lines: Vec<_> = output.lines().collect();
     let separator = separator_position(&lines)
-        .ok_or_else(|| AppError::Parse("Scoop: Tabelle der installierten Apps fehlt".into()))?;
+        .ok_or_else(|| AppError::Parse("Scoop: installed apps table is missing".into()))?;
     let columns = column_starts(lines[separator]);
     if columns.len() < 3 {
         return Err(AppError::Parse(
-            "Scoop: unvollständige Spaltengrenzen".into(),
+            "Scoop: incomplete column boundaries".into(),
         ));
     }
     let (global_rows, local_rows): (Vec<_>, Vec<_>) = lines[separator + 1..]
@@ -81,7 +81,7 @@ fn parse_scoop_list(output: &str) -> AppResult<Installed> {
     let warnings = if global_rows.is_empty() {
         Vec::new()
     } else {
-        vec!["Global installierte Scoop-Apps werden nicht angezeigt.".to_owned()]
+        vec!["Globally installed Scoop apps are not shown.".to_owned()]
     };
     Ok(Installed {
         packages: local_rows
@@ -118,11 +118,11 @@ fn parse_scoop_status(output: &str) -> AppResult<Upgrades> {
     }
     let lines: Vec<_> = output.lines().collect();
     let separator = separator_position(&lines)
-        .ok_or_else(|| AppError::Parse("Scoop: Statustabelle fehlt".into()))?;
+        .ok_or_else(|| AppError::Parse("Scoop: status table is missing".into()))?;
     let columns = column_starts(lines[separator]);
     if columns.len() < 3 {
         return Err(AppError::Parse(
-            "Scoop: unvollständige Spaltengrenzen".into(),
+            "Scoop: incomplete column boundaries".into(),
         ));
     }
     let mut upgrades = Upgrades::default();
@@ -171,13 +171,13 @@ fn parse_scoop_row(line: &str, columns: &[usize], upgrades: &mut Upgrades) {
     let info = field(INFO_COLUMN);
     if info.contains("Held package") {
         upgrades.warnings.push(format!(
-            "{name}: Paket ist gehalten (scoop hold) – nicht aktualisiert"
+            "{name}: package is held (scoop hold) – not updated"
         ));
         return;
     }
     if info.contains(GLOBAL_INSTALL_MARKER) {
         upgrades.warnings.push(format!(
-            "{name}: globale Scoop-Installation wird nicht automatisch aktualisiert"
+            "{name}: global Scoop installations are not updated automatically"
         ));
         return;
     }
@@ -224,7 +224,7 @@ mod tests {
         assert_eq!(packages[1].source.as_deref(), Some("main"));
         assert_eq!(
             installed.warnings,
-            vec!["Global installierte Scoop-Apps werden nicht angezeigt."]
+            vec!["Globally installed Scoop apps are not shown."]
         );
     }
 
@@ -282,8 +282,8 @@ git  2.47.0  main   2024-12-01 09:12:44 ",
         assert_eq!(
             upgrades.warnings,
             vec![
-                "held: Paket ist gehalten (scoop hold) – nicht aktualisiert",
-                "glob: globale Scoop-Installation wird nicht automatisch aktualisiert",
+                "held: package is held (scoop hold) – not updated",
+                "glob: global Scoop installations are not updated automatically",
             ]
         );
     }

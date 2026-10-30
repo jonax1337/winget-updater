@@ -25,9 +25,9 @@ export function useHistory() {
     try {
       await clearHistory();
       await refresh();
-      toast.success("Verlauf geleert");
+      toast.success("History cleared");
     } catch (error) {
-      toast.error("Verlauf konnte nicht geleert werden", {
+      toast.error("Could not clear history", {
         description: toAppError(error).message,
       });
     } finally {

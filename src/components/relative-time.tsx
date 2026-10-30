@@ -3,7 +3,7 @@ import { formatDate, relativeTime } from "@/lib/format";
 
 export function RelativeTime({
   timestamp,
-  fallback = "Noch nicht geplant",
+  fallback = "Not scheduled",
 }: {
   timestamp: string | null;
   fallback?: string;

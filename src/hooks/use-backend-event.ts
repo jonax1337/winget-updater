@@ -22,7 +22,7 @@ export function useBackendEvent<T>(
       })
       .catch((error: unknown) => {
         if (!disposed)
-          toast.error("Live-Verbindung fehlgeschlagen", {
+          toast.error("Live connection failed", {
             description: toAppError(error).message,
           });
       });

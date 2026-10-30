@@ -14,12 +14,12 @@ export function ResourceError({
   return (
     <Alert variant="destructive">
       <AlertCircle />
-      <AlertTitle>Daten konnten nicht geladen werden</AlertTitle>
+      <AlertTitle>Could not load data</AlertTitle>
       <AlertDescription>{error.message}</AlertDescription>
       <AlertAction>
         <Button variant="outline" size="sm" onClick={retry}>
           <RotateCcw data-icon="inline-start" />
-          Erneut
+          Retry
         </Button>
       </AlertAction>
     </Alert>

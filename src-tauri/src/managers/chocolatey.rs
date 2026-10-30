@@ -74,7 +74,7 @@ fn parse_chocolatey_list(output: &str) -> AppResult<Vec<InstalledPackage>> {
         let fields: Vec<_> = line.split('|').map(str::trim).collect();
         if fields.len() != 2 || fields.iter().any(|field| field.is_empty()) {
             return Err(AppError::Parse(format!(
-                "Chocolatey: ungültige Paketzeile: {line}"
+                "Chocolatey: invalid package row: {line}"
             )));
         }
         packages.push(InstalledPackage {
@@ -94,7 +94,7 @@ fn parse_chocolatey_outdated(output: &str) -> AppResult<Vec<Package>> {
         let fields: Vec<_> = line.split('|').map(str::trim).collect();
         if fields.len() != 4 || fields[..3].iter().any(|field| field.is_empty()) {
             return Err(AppError::Parse(format!(
-                "Chocolatey: ungültige Paketzeile: {line}"
+                "Chocolatey: invalid package row: {line}"
             )));
         }
         if fields[3].eq_ignore_ascii_case("true") {
@@ -102,7 +102,7 @@ fn parse_chocolatey_outdated(output: &str) -> AppResult<Vec<Package>> {
         }
         if !fields[3].eq_ignore_ascii_case("false") {
             return Err(AppError::Parse(format!(
-                "Chocolatey: ungültiger Pin-Status: {line}"
+                "Chocolatey: invalid pin status: {line}"
             )));
         }
         packages.push(Package {

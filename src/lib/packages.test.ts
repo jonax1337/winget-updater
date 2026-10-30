@@ -14,13 +14,13 @@ describe("managerVersionLabel", () => {
     enabled: true, requiresAdmin: false,
   };
   it("labels an installed manager without a version", () => {
-    expect(managerVersionLabel(manager)).toBe("Installiert");
+    expect(managerVersionLabel(manager)).toBe("Installed");
   });
   it("shows the version of an available manager", () => {
     expect(managerVersionLabel({ ...manager, version: "1.2.3" })).toBe("1.2.3");
   });
   it("does not show a stale version for an unavailable manager", () => {
-    expect(managerVersionLabel({ ...manager, available: false, version: "1.2.3" })).toBe("Nicht installiert");
+    expect(managerVersionLabel({ ...manager, available: false, version: "1.2.3" })).toBe("Not installed");
   });
 });
 

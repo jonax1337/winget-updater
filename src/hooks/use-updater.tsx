@@ -35,10 +35,10 @@ function availablePackages(packages: Package[], settings?: Settings): Package[] 
 }
 
 function notifySummary(summary: UpdateSummary) {
-  const message = `${summary.succeeded} aktualisiert, ${summary.failed} fehlgeschlagen`;
+  const message = `${summary.succeeded} updated, ${summary.failed} failed`;
   const options = {
     id: "update-result",
-    description: "Details stehen im Verlauf.",
+    description: "See history for details.",
   };
   if (summary.failed) toast.error(message, options);
   else toast.success(message, options);
@@ -86,11 +86,11 @@ function useUpdaterState() {
       const result = await scanUpdates();
       replaceScan(result);
       const count = availablePackages(result.packages, currentSettings).length;
-      toast.success("Prüfung abgeschlossen", {
-        description: `${plural(count, "Update", "Updates")} gefunden.`,
+      toast.success("Check complete", {
+        description: `${plural(count, "update", "updates")} found.`,
       });
     } catch (error) {
-      toast.error("Prüfung fehlgeschlagen", {
+      toast.error("Check failed", {
         description: toAppError(error).message,
       });
     } finally {
@@ -120,9 +120,9 @@ function useUpdaterState() {
       progress.abandon();
       const { kind, message: description } = toAppError(error);
       if (kind === "storage") {
-        toast.warning("Verlauf konnte nicht gespeichert werden", { description });
+        toast.warning("Could not save history", { description });
       } else {
-        toast.error("Aktualisierung fehlgeschlagen", { description });
+        toast.error("Update failed", { description });
       }
     } finally {
       lock.current = false;
@@ -133,8 +133,8 @@ function useUpdaterState() {
 
   const uninstall = async ({ name, ...reference }: NamedPackageRef): Promise<boolean> => {
     if (lock.current || busy || settings.saving) {
-      toast.warning("Gerade läuft ein anderer Vorgang", {
-        description: "Deinstallieren ist erst möglich, wenn er abgeschlossen ist.",
+      toast.warning("Another operation is in progress", {
+        description: "Wait for it to finish before uninstalling.",
       });
       return false;
     }
@@ -142,10 +142,10 @@ function useUpdaterState() {
     setOperation("uninstall");
     try {
       await uninstallPackage(reference);
-      toast.success(`${name} deinstalliert`);
+      toast.success(`${name} uninstalled`);
       return true;
     } catch (error) {
-      toast.error("Deinstallation fehlgeschlagen", {
+      toast.error("Uninstall failed", {
         description: toAppError(error).message,
       });
       return false;
@@ -189,6 +189,6 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
 
 export function useUpdater(): Updater {
   const context = useContext(UpdaterContext);
-  if (!context) throw new Error("UpdaterProvider fehlt");
+  if (!context) throw new Error("UpdaterProvider is missing");
   return context;
 }

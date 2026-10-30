@@ -8,7 +8,7 @@ export function SiteHeader({ page }: { page: Page }) {
   return (
     <header className="flex h-header shrink-0 items-center gap-2 border-b">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
-        <SidebarTrigger className="-ml-1" aria-label="Seitenleiste umschalten" />
+        <SidebarTrigger className="-ml-1" aria-label="Toggle sidebar" />
         <Separator
           orientation="vertical"
           className="mx-2 data-[orientation=vertical]:h-4"
@@ -26,7 +26,7 @@ function ActivityStatus() {
   return (
     <span role="status" className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
       <Spinner />
-      {scanning ? "Prüfung läuft" : "Aktualisierung läuft"}
+      {scanning ? "Checking for updates" : "Updating"}
     </span>
   );
 }

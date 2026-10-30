@@ -1,13 +1,13 @@
 export function plural(count: number, one: string, other: string): string {
-  const form = new Intl.PluralRules("de-DE").select(count) === "one" ? one : other;
+  const form = new Intl.PluralRules("en-US").select(count) === "one" ? one : other;
   return `${count} ${form}`;
 }
 
-const relativeFormatter = new Intl.RelativeTimeFormat("de-DE", {
+const relativeFormatter = new Intl.RelativeTimeFormat("en-US", {
   numeric: "always",
   style: "short",
 });
-const dateFormatter = new Intl.DateTimeFormat("de-DE", {
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short",
 });
@@ -24,9 +24,9 @@ export function relativeTime(
   timestamp: string | null,
   now = Date.now(),
 ): string {
-  if (!timestamp) return "Noch nicht geplant";
+  if (!timestamp) return "Not scheduled";
   const seconds = (Date.parse(timestamp) - now) / 1000;
-  if (!Number.isFinite(seconds)) return "Unbekannt";
+  if (!Number.isFinite(seconds)) return "Unknown";
   const [unit, divisor] =
     timeUnits.find(([, duration]) => Math.abs(seconds) >= duration) ??
     timeUnits[5];
@@ -34,9 +34,9 @@ export function relativeTime(
 }
 
 export function formatDate(timestamp: string | null): string {
-  if (!timestamp) return "Noch kein Scan";
+  if (!timestamp) return "No scans yet";
   const date = new Date(timestamp);
   return Number.isFinite(date.getTime())
     ? dateFormatter.format(date)
-    : "Unbekannt";
+    : "Unknown";
 }

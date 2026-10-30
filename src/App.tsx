@@ -66,9 +66,9 @@ function Notices() {
       {!isTauri() && (
         <Alert>
           <Info />
-          <AlertTitle>Browseransicht</AlertTitle>
+          <AlertTitle>Browser preview</AlertTitle>
           <AlertDescription>
-            Paketmanager und Einstellungen sind nur in der Desktop-App verfügbar.
+            Package managers and settings are only available in the desktop app.
           </AlertDescription>
         </Alert>
       )}

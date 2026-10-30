@@ -2,17 +2,17 @@ use serde::{Serialize, Serializer, ser::SerializeStruct};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("Ein Scan oder Update läuft bereits")]
+    #[error("A check or update is already in progress")]
     Busy,
-    #[error("{0} ist nicht installiert")]
+    #[error("{0} is not installed")]
     ManagerUnavailable(String),
-    #[error("Befehl fehlgeschlagen: {0}")]
+    #[error("Command failed: {0}")]
     Command(String),
-    #[error("Zeitüberschreitung: {0}")]
+    #[error("Timed out: {0}")]
     Timeout(String),
-    #[error("Ausgabe nicht lesbar: {0}")]
+    #[error("Could not read output: {0}")]
     Parse(String),
-    #[error("Speicherfehler: {0}")]
+    #[error("Storage error: {0}")]
     Storage(String),
     #[error("{0}")]
     Other(String),

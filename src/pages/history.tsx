@@ -41,18 +41,18 @@ export function History() {
         <ToggleGroup
           type="single"
           variant="outline"
-          aria-label="Verlauf filtern"
+          aria-label="Filter history"
           value={filter}
           onValueChange={(value: ResultFilter) => value && setFilter(value)}
         >
-          <ToggleGroupItem value="all">Alle</ToggleGroupItem>
-          <ToggleGroupItem value="succeeded">Erfolgreich</ToggleGroupItem>
-          <ToggleGroupItem value="failed">Fehlgeschlagen</ToggleGroupItem>
+          <ToggleGroupItem value="all">All</ToggleGroupItem>
+          <ToggleGroupItem value="succeeded">Succeeded</ToggleGroupItem>
+          <ToggleGroupItem value="failed">Failed</ToggleGroupItem>
         </ToggleGroup>
         <ConfirmAction
-          title="Verlauf wirklich leeren?"
-          description="Alle gespeicherten Ergebnisse werden entfernt. Installierte Anwendungen bleiben unverändert."
-          confirm="Verlauf leeren"
+          title="Clear history?"
+          description="This removes all saved results. Installed apps are kept."
+          confirm="Clear history"
           onConfirm={() => void history.clear()}
           trigger={
             <Button
@@ -61,7 +61,7 @@ export function History() {
               disabled={updating || history.clearing || !history.entries.length}
             >
               <Trash2 data-icon="inline-start" />
-              Verlauf leeren
+              Clear history
             </Button>
           }
         />
@@ -84,7 +84,7 @@ const column = dataTableColumns<HistoryEntry>();
 
 const HISTORY_COLUMNS: DataTableColumn<HistoryEntry>[] = [
   column.accessor("name", {
-    header: "Anwendung",
+    header: "App",
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
         <PackageIcon package={row.original.package} name={row.original.name} />
@@ -107,11 +107,11 @@ const HISTORY_COLUMNS: DataTableColumn<HistoryEntry>[] = [
   }),
   column.display({
     id: "manager",
-    header: "Quelle",
+    header: "Source",
     cell: ({ row }) => <ManagerBadge manager={row.original.package.manager} />,
   }),
   column.accessor("status", {
-    header: "Ergebnis",
+    header: "Result",
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
         <StatusBadge status={row.original.status} />
@@ -124,7 +124,7 @@ const HISTORY_COLUMNS: DataTableColumn<HistoryEntry>[] = [
     ),
   }),
   column.accessor("finishedAt", {
-    header: "Zeitpunkt",
+    header: "Time",
     cell: ({ row }) => (
       <div className="flex flex-col text-xs">
         <RelativeTime timestamp={row.original.finishedAt} />
@@ -141,11 +141,11 @@ function NoHistory({ filtered }: { filtered: boolean }) {
         <EmptyMedia variant="icon">
           <HistoryIcon />
         </EmptyMedia>
-        <EmptyTitle>{filtered ? "Keine Ergebnisse für diesen Filter" : "Noch kein Verlauf"}</EmptyTitle>
+        <EmptyTitle>{filtered ? "No results for this filter" : "No history yet"}</EmptyTitle>
         <EmptyDescription>
           {filtered
-            ? "Anderen Filter wählen, um weitere Ergebnisse zu sehen."
-            : "Nach der ersten Aktualisierung stehen hier Versionen, Zeitpunkt und Ergebnis."}
+            ? "Choose another filter to see more results."
+            : "Update results, versions, and times will appear here."}
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

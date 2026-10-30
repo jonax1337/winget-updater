@@ -45,7 +45,7 @@ export function Updates() {
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
       <ResourceError error={scan.error} retry={scan.refresh} />
-      <ManagerErrors errors={scan.scan?.errors ?? []} failure="konnte nicht geprüft werden" />
+      <ManagerErrors errors={scan.scan?.errors ?? []} failure="could not be checked" />
       <div className="flex flex-wrap items-center gap-2">
         <PackageFilters filters={filters} />
         <Button
@@ -54,7 +54,7 @@ export function Updates() {
           onClick={() => void update(selection)}
         >
           <Download data-icon="inline-start" />
-          Auswahl aktualisieren
+          Update selected
           {selection.length > 0 && <Badge variant="secondary">{selection.length}</Badge>}
         </Button>
       </div>
@@ -80,7 +80,7 @@ const column = dataTableColumns<Package>();
 const PACKAGE_COLUMNS: DataTableColumn<Package>[] = [
   selectColumn((entry) => entry.name),
   column.accessor("name", {
-    header: "Anwendung",
+    header: "App",
     cell: ({ row }) => (
       <div className="flex items-center gap-3">
         <PackageIcon package={row.original} name={row.original.name} />
@@ -102,7 +102,7 @@ const PACKAGE_COLUMNS: DataTableColumn<Package>[] = [
     ),
   }),
   column.accessor("manager", {
-    header: "Quelle",
+    header: "Source",
     cell: ({ row }) => <ManagerBadge manager={row.original.manager} />,
   }),
   column.display({
@@ -112,7 +112,7 @@ const PACKAGE_COLUMNS: DataTableColumn<Package>[] = [
   }),
   column.display({
     id: "actions",
-    header: () => <span className="sr-only">Aktionen</span>,
+    header: () => <span className="sr-only">Actions</span>,
     cell: ({ row }) => <PackageActions entry={row.original} />,
   }),
 ];
@@ -140,8 +140,8 @@ function PackageStatus({ entry }: { entry: Package }) {
 }
 
 function availabilityLabel(ignored: boolean, enabled?: boolean): string {
-  if (ignored) return "Ignoriert";
-  return enabled ? "Verfügbar" : "Quelle pausiert";
+  if (ignored) return "Ignored";
+  return enabled ? "Available" : "Source paused";
 }
 
 function PackageActions({ entry }: { entry: Package }) {
@@ -152,7 +152,7 @@ function PackageActions({ entry }: { entry: Package }) {
     <PackageMenu entry={entry}>
       <DropdownMenuItem disabled={locked || !updatable} onSelect={() => void update([entry])}>
         <Download />
-        Jetzt aktualisieren
+        Update now
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuCheckboxItem
@@ -160,7 +160,7 @@ function PackageActions({ entry }: { entry: Package }) {
         disabled={locked}
         onCheckedChange={(value) => void settings.ignore(entry, value)}
       >
-        Bei Auto-Updates ignorieren
+        Ignore automatic updates
       </DropdownMenuCheckboxItem>
     </PackageMenu>
   );
@@ -172,16 +172,16 @@ function NoUpdates({ scan }: { scan: ScanResult | null }) {
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">{scan ? <ShieldCheck /> : <PackageCheck />}</EmptyMedia>
-        <EmptyTitle>{scan ? "Alles auf dem neuesten Stand" : "Noch nicht geprüft"}</EmptyTitle>
+        <EmptyTitle>{scan ? "Everything is up to date" : "Not checked yet"}</EmptyTitle>
         <EmptyDescription>
           {scan
-            ? "Bei der letzten Prüfung wurden keine neueren Versionen gefunden."
-            : "Prüfe deine aktiven Paketmanager auf verfügbare Updates."}
+            ? "No newer versions were found during the last check."
+            : "Check your enabled package managers for updates."}
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
         <Button variant="outline" disabled={busy || !ready || settings.saving} onClick={() => void check()}>
-          Jetzt prüfen
+          Check now
         </Button>
       </EmptyContent>
     </Empty>

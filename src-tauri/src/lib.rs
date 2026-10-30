@@ -55,14 +55,24 @@ pub fn run() {
             }
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 if let Err(error) = window.hide() {
-                    eprintln!("Fenster konnte nicht versteckt werden: {error}");
+                    eprintln!("Could not hide window: {error}");
                 }
             }
+            tauri::WindowEvent::ThemeChanged(_)
+                if window.try_state::<engine::AppState>().is_some() =>
+            {
+                let app = window.app_handle();
+                let pending = engine::get_run_state(app).pending_updates;
+                if let Err(error) = tray::show_pending_updates(app, pending) {
+                    eprintln!("Could not update tray appearance: {error}");
+                }
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
-        .expect("Winget Updater konnte nicht gestartet werden");
+        .expect("Could not start Winget Updater");
 }

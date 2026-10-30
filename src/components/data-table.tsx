@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { plural } from "@/lib/format";
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -67,7 +68,7 @@ export function selectColumn<T extends RowData>(label: (row: T) => string): Data
           (table.getIsSomePageRowsSelected() && "indeterminate")
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Alle auswählbaren Zeilen auswählen"
+        aria-label="Select all available rows"
       />
     ),
     cell: ({ row }) => (
@@ -75,7 +76,7 @@ export function selectColumn<T extends RowData>(label: (row: T) => string): Data
         checked={row.getIsSelected()}
         disabled={!row.getCanSelect()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label={`${label(row.original)} auswählen`}
+        aria-label={`Select ${label(row.original)}`}
       />
     ),
     enableSorting: false,
@@ -152,14 +153,14 @@ export function DataTable<T extends RowData>({
       <div className="flex items-center justify-between px-4">
         <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
           {canSelect
-            ? `${table.getFilteredSelectedRowModel().rows.length} von ${table.getFilteredRowModel().rows.length} ausgewählt`
-            : `${table.getFilteredRowModel().rows.length} Einträge`}
+            ? `${table.getFilteredSelectedRowModel().rows.length} of ${table.getFilteredRowModel().rows.length} selected`
+            : plural(table.getFilteredRowModel().rows.length, "row", "rows")}
         </div>
         <div className="flex w-full items-center gap-8 lg:w-fit">
           <div className="hidden items-center gap-2 lg:flex">
-            <span className="text-sm font-medium">Zeilen pro Seite</span>
+            <span className="text-sm font-medium">Rows per page</span>
             <Combobox
-              label="Zeilen pro Seite"
+              label="Rows per page"
               value={String(pagination.pageSize)}
               options={PAGE_SIZES}
               onChange={(value) => table.setPageSize(Number(value))}
@@ -167,14 +168,14 @@ export function DataTable<T extends RowData>({
             />
           </div>
           <div className="flex w-fit items-center justify-center text-sm font-medium">
-            Seite {pagination.pageIndex + 1} von {Math.max(table.getPageCount(), 1)}
+            Page {pagination.pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
           </div>
           <div className="ml-auto flex items-center gap-2 lg:ml-0">
             <Button
               variant="outline"
               size="icon"
               className="hidden size-8 lg:flex"
-              aria-label="Erste Seite"
+              aria-label="First page"
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
             >
@@ -184,7 +185,7 @@ export function DataTable<T extends RowData>({
               variant="outline"
               size="icon"
               className="size-8"
-              aria-label="Vorherige Seite"
+              aria-label="Previous page"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
@@ -194,7 +195,7 @@ export function DataTable<T extends RowData>({
               variant="outline"
               size="icon"
               className="size-8"
-              aria-label="Nächste Seite"
+              aria-label="Next page"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
@@ -204,7 +205,7 @@ export function DataTable<T extends RowData>({
               variant="outline"
               size="icon"
               className="hidden size-8 lg:flex"
-              aria-label="Letzte Seite"
+              aria-label="Last page"
               onClick={() => table.setPageIndex(table.getPageCount() - 1)}
               disabled={!table.getCanNextPage()}
             >

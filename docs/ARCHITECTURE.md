@@ -6,7 +6,8 @@ Verbindlich für alle Implementierungs-Agenten. Abweichungen nur mit Begründung
 
 Windows-Tray-App (Tauri 2), die beim Login startet, periodisch alle verfügbaren Paketmanager
 nach Updates fragt und diese automatisch installiert. UI zur Kontrolle, Ausnahmen, Verlauf.
-UI-Sprache: **Deutsch**.
+UI language: **English**. App-owned UI text, accessibility labels, tray menus, notifications,
+and errors must be English. Package-manager parsers still accept localized output.
 
 ## Stack (entschieden)
 
@@ -146,6 +147,10 @@ UI-Regeln:
 - Nur shadcn-Komponenten/-Blocks; keine eigenen CSS-Klassen, keine Inline-Styles.
 - Design-System = Tokens in `src/index.css` (Farben inkl. `success`/`warning`/`info`, Manager-Farben
   `manager-*`, Fonts, Radien, `titlebar`/`header`-Höhen); Komponenten nutzen sie nur über Tailwind-Utilities.
+- CI: WU-Monogramm, Limette/Graphit/Kreide; feste `brand`-Tokens und semantische Hell-/Dunkel-Tokens.
+  SVG-Master `app-icon.svg`, reproduzierbare Desktop-Exporte über `pnpm icons`, Details in
+  `docs/branding/IDENTITY.md`. Das Tray nutzt eigene transparente Hell-/Dunkel-Icons passend zur
+  Windows-Taskleiste und einen limettenfarbenen Update-Punkt mit Graphitkontur.
 - Auswahllisten immer als `Combobox` (Popover + Command), keine nativen Controls (`select`, `type=number`).
 
 Seiten:

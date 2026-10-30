@@ -1,7 +1,7 @@
 import type { ManagerId, ManagerInfo, PackageRef } from "./types";
 
 export function managerVersionLabel(manager: ManagerInfo): string {
-  return manager.available ? manager.version ?? "Installiert" : "Nicht installiert";
+  return manager.available ? manager.version ?? "Installed" : "Not installed";
 }
 
 export const MANAGER_NAMES: Record<ManagerId, string> = {
@@ -16,7 +16,7 @@ export const MANAGER_NAMES: Record<ManagerId, string> = {
 export type ManagerFilter = ManagerId | "all";
 
 export const MANAGER_FILTERS = [
-  { value: "all" as ManagerFilter, label: "Alle Quellen" },
+  { value: "all" as ManagerFilter, label: "All sources" },
   ...(Object.entries(MANAGER_NAMES) as [ManagerId, string][]).map(([value, label]) => ({
     value: value as ManagerFilter,
     label,
@@ -27,11 +27,11 @@ export interface NamedPackageRef extends PackageRef {
   name: string;
 }
 
-/** `query` must already be trimmed and lower-cased for the German locale. */
+/** `query` must already be trimmed and lower-cased for the English locale. */
 export function matchesFilter(entry: NamedPackageRef, manager: ManagerFilter, query: string): boolean {
   return (
     (manager === "all" || entry.manager === manager) &&
-    `${entry.name} ${entry.id}`.toLocaleLowerCase("de-DE").includes(query)
+    `${entry.name} ${entry.id}`.toLocaleLowerCase("en-US").includes(query)
   );
 }
 
@@ -59,6 +59,6 @@ export function initials(name: string): string {
     words.length > 1
       ? [Array.from(words[0]!)[0], Array.from(words[1]!)[0]]
       : Array.from(words[0]!).slice(0, 2);
-  return letters.join("").toLocaleUpperCase("de-DE");
+  return letters.join("").toLocaleUpperCase("en-US");
 }
 

@@ -94,7 +94,7 @@ export function NumberStepper({
   const commit = (next: number) => {
     if (!Number.isSafeInteger(next) || next < min || next > max) {
       setDraft(String(value));
-      toast.error(`Bitte eine ganze Zahl zwischen ${min} und ${max} eingeben.`);
+      toast.error(`Enter a whole number between ${min} and ${max}.`);
       return;
     }
     setDraft(String(next));
@@ -105,7 +105,7 @@ export function NumberStepper({
       <InputGroupAddon>
         <InputGroupButton
           size="icon-xs"
-          aria-label="Verringern"
+          aria-label="Decrease"
           disabled={disabled || value <= min}
           onClick={() => commit(value - 1)}
         >
@@ -129,7 +129,7 @@ export function NumberStepper({
         <InputGroupText>{unit}</InputGroupText>
         <InputGroupButton
           size="icon-xs"
-          aria-label="Erhöhen"
+          aria-label="Increase"
           disabled={disabled || value >= max}
           onClick={() => commit(value + 1)}
         >

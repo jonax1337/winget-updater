@@ -38,7 +38,7 @@ export function toAppError(error: unknown): AppError {
     message:
       error instanceof Error
         ? error.message
-        : "Ein unbekannter Fehler ist aufgetreten.",
+        : "An unknown error occurred.",
   };
 }
 
@@ -50,7 +50,7 @@ async function command<T>(
     throw {
       kind: "unavailable",
       message:
-        "Bitte die Desktop-App öffnen. Die Browseransicht hat keinen Zugriff auf Paketmanager.",
+        "Open the desktop app to access package managers.",
     } satisfies AppError;
   try {
     return await invoke<T>(name, args);

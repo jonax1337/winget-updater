@@ -35,19 +35,19 @@ export function NavMain<T extends string>({
         <SidebarMenu className="gap-1">
           <SidebarMenuItem className="flex items-center gap-2">
             <SidebarMenuButton
-              tooltip="Alle aktualisieren"
+              tooltip="Update all"
               disabled={locked || !actionable.length}
               onClick={() => void update()}
-              className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+              className="min-w-8 bg-brand text-brand-foreground duration-200 ease-linear hover:bg-brand-hover hover:text-brand-foreground active:bg-brand-hover active:text-brand-foreground"
             >
               <Download />
-              <span>Alle aktualisieren</span>
+              <span>Update all</span>
             </SidebarMenuButton>
             <Button
               size="icon"
               variant="outline"
               className="size-8 group-data-[collapsible=icon]:opacity-0"
-              aria-label="Jetzt prüfen"
+              aria-label="Check now"
               disabled={locked}
               onClick={() => void check()}
             >
@@ -84,6 +84,7 @@ export function NavMainItem<T extends string>({
       <SidebarMenuButton
         tooltip={item.title}
         isActive={active}
+        className="data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground"
         aria-current={active ? "page" : undefined}
         onClick={onSelect}
       >

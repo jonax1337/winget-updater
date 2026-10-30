@@ -84,7 +84,7 @@ fn write_entries(store: &Store<tauri::Wry>, entries: &[HistoryEntry]) -> AppResu
 }
 
 fn storage_error(error: impl std::fmt::Display) -> AppError {
-    AppError::Storage(format!("Verlauf: {error}"))
+    AppError::Storage(format!("History: {error}"))
 }
 
 #[cfg(test)]

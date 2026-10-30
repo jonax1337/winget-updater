@@ -35,7 +35,7 @@ impl CommandOutput {
             return Ok(self);
         }
         Err(AppError::Command(format!(
-            "{command} (Exit-Code {:?}): {}",
+            "{command} (exit code {:?}): {}",
             self.exit_code,
             self.diagnostic()
         )))
@@ -67,7 +67,7 @@ fn version_from_output(
         .stdout
         .lines()
         .find(|line| !line.trim().is_empty())
-        .ok_or_else(|| AppError::Parse(format!("{program} --version: Versionsausgabe fehlt")))?;
+        .ok_or_else(|| AppError::Parse(format!("{program} --version: missing version output")))?;
     Ok(Some(version.trim().to_owned()))
 }
 
@@ -85,7 +85,7 @@ pub fn validate_package_id(package_id: &str) -> AppResult<()> {
 }
 
 pub fn invalid_package_id(package_id: &str) -> AppError {
-    AppError::Command(format!("Ungültige Paket-ID: {package_id:?}"))
+    AppError::Command(format!("Invalid package ID: {package_id:?}"))
 }
 
 pub fn run(program: &str, args: &[&str], timeout: Duration) -> AppResult<CommandOutput> {
@@ -190,7 +190,7 @@ fn find_shim(shim: &str) -> AppResult<std::path::PathBuf> {
 fn quote_cmd_argument(argument: &str) -> AppResult<String> {
     if argument.contains(['"', '&', '|', '<', '>', '^', '%', '!', '\r', '\n', '\0']) {
         return Err(AppError::Command(format!(
-            "Unsicheres Argument für cmd.exe: {argument:?}"
+            "Unsafe argument for cmd.exe: {argument:?}"
         )));
     }
     Ok(format!("\"{argument}\""))
@@ -267,7 +267,7 @@ fn collect_output(reader: OutputReader, remaining: Duration, context: &str) -> A
         Err(RecvTimeoutError::Timeout) => {}
         Err(RecvTimeoutError::Disconnected) => {
             return Err(AppError::Command(format!(
-                "{context}: Ausgabe-Thread abgebrochen"
+                "{context}: output thread aborted"
             )));
         }
     }

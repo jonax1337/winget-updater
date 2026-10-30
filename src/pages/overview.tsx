@@ -84,11 +84,11 @@ function UpdatesBySource({ onShowAll }: { onShowAll: () => void }) {
   return (
     <Card className="flex flex-col">
       <CardHeader>
-        <CardTitle>Updates nach Quelle</CardTitle>
-        <CardDescription>Verfügbare, nicht ignorierte Versionen</CardDescription>
+        <CardTitle>Updates by source</CardTitle>
+        <CardDescription>Available updates, excluding ignored packages</CardDescription>
         <CardAction>
           <Button variant="ghost" size="sm" onClick={onShowAll}>
-            Alle anzeigen
+            View all
             <ArrowRight data-icon="inline-end" />
           </Button>
         </CardAction>
@@ -105,8 +105,8 @@ function UpdatesBySource({ onShowAll }: { onShowAll: () => void }) {
               <EmptyMedia variant="icon">
                 <ShieldCheck />
               </EmptyMedia>
-              <EmptyTitle>Alles aktuell</EmptyTitle>
-              <EmptyDescription>Keine ausstehenden Updates gefunden.</EmptyDescription>
+              <EmptyTitle>Up to date</EmptyTitle>
+              <EmptyDescription>No pending updates found.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         )}
@@ -149,7 +149,7 @@ function SourceChart({ data, total }: { data: SourceSlice[]; total: number }) {
 
 function SourceLegend({ data }: { data: SourceSlice[] }) {
   return (
-    <ul aria-label="Legende" className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+    <ul aria-label="Legend" className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
       {data.map((entry) => (
         <li key={entry.manager} className="flex items-center gap-2">
           <ManagerDot manager={entry.manager} />
@@ -166,8 +166,8 @@ function ManagerStatus() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Paketmanager</CardTitle>
-        <CardDescription>Quellen, die nach neuen Versionen durchsucht werden</CardDescription>
+        <CardTitle>Package managers</CardTitle>
+        <CardDescription>Sources checked for new versions</CardDescription>
         <CardAction>
           <Blocks className="size-4 text-muted-foreground" />
         </CardAction>
@@ -205,11 +205,11 @@ function ManagerStatus() {
 }
 
 function ManagerState({ manager, enabled }: { manager: ManagerInfo; enabled: boolean }) {
-  if (!manager.available) return <Badge variant="outline">Nicht installiert</Badge>;
-  if (!enabled) return <Badge variant="secondary">Pausiert</Badge>;
+  if (!manager.available) return <Badge variant="outline">Not installed</Badge>;
+  if (!enabled) return <Badge variant="secondary">Paused</Badge>;
   return (
     <Badge variant="outline" className="text-success">
-      {manager.requiresAdmin ? "Aktiv · Admin" : "Aktiv"}
+      {manager.requiresAdmin ? "Active · Admin" : "Active"}
     </Badge>
   );
 }

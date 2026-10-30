@@ -12,7 +12,7 @@ impl PackageManager for Pip {
         ManagerId::Pip
     }
     fn display_name(&self) -> &'static str {
-        "pip (Benutzer)"
+        "pip (user)"
     }
     fn requires_admin(&self) -> bool {
         false

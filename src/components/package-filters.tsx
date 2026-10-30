@@ -23,7 +23,7 @@ import {
 export function usePackageFilters() {
   const [search, setSearch] = useState("");
   const [manager, setManager] = useState<ManagerFilter>("all");
-  const query = useDeferredValue(search.trim().toLocaleLowerCase("de-DE"));
+  const query = useDeferredValue(search.trim().toLocaleLowerCase("en-US"));
   return {
     search,
     setSearch,
@@ -41,14 +41,14 @@ export function PackageFilters({ filters }: { filters: ReturnType<typeof usePack
           <Search />
         </InputGroupAddon>
         <InputGroupInput
-          aria-label="Pakete durchsuchen"
-          placeholder="Name oder Paket-ID suchen …"
+          aria-label="Search packages"
+          placeholder="Search by name or package ID …"
           value={filters.search}
           onChange={(event) => filters.setSearch(event.target.value)}
         />
       </InputGroup>
       <Combobox
-        label="Nach Quelle filtern"
+        label="Filter by source"
         value={filters.manager}
         options={MANAGER_FILTERS}
         onChange={filters.setManager}
@@ -65,8 +65,8 @@ export function NoMatches() {
         <EmptyMedia variant="icon">
           <SearchX />
         </EmptyMedia>
-        <EmptyTitle>Keine passenden Pakete</EmptyTitle>
-        <EmptyDescription>Anderen Suchbegriff oder eine andere Quelle wählen.</EmptyDescription>
+        <EmptyTitle>No matching packages</EmptyTitle>
+        <EmptyDescription>Try another search or source.</EmptyDescription>
       </EmptyHeader>
     </Empty>
   );

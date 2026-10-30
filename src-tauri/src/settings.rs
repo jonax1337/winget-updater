@@ -12,12 +12,12 @@ const SETTINGS_KEY: &str = "settings";
 pub fn validate(settings: &Settings) -> AppResult<()> {
     if !(1..=168).contains(&settings.check_interval_hours) {
         return Err(AppError::Other(
-            "Das Prüfintervall muss zwischen 1 und 168 Stunden liegen".into(),
+            "Check interval must be between 1 and 168 hours".into(),
         ));
     }
     if settings.startup_delay_minutes > 60 {
         return Err(AppError::Other(
-            "Die Startverzögerung muss zwischen 0 und 60 Minuten liegen".into(),
+            "Startup delay must be between 0 and 60 minutes".into(),
         ));
     }
     Ok(())
@@ -78,7 +78,7 @@ pub fn package_key(package: &PackageRef) -> String {
 }
 
 fn storage_error(error: impl std::fmt::Display) -> AppError {
-    AppError::Storage(format!("Einstellungen: {error}"))
+    AppError::Storage(format!("Settings: {error}"))
 }
 
 #[cfg(test)]

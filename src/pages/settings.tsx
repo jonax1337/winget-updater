@@ -41,9 +41,9 @@ import { managerVersionLabel, packageKey, parsePackageKey } from "@/lib/packages
 import type { ManagerInfo, Settings, Theme } from "@/lib/types";
 
 const THEMES: { value: Theme; label: string }[] = [
-  { value: "system", label: "Wie Windows" },
-  { value: "light", label: "Hell" },
-  { value: "dark", label: "Dunkel" },
+  { value: "system", label: "Follow Windows" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
 ];
 
 export function SettingsPage() {
@@ -82,7 +82,7 @@ function Section({
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
         <CardAction className="text-muted-foreground" aria-live="polite">
-          {settings.saving ? <Spinner /> : <Check className="size-4" aria-label="Gespeichert" />}
+          {settings.saving ? <Spinner /> : <Check className="size-4" aria-label="Saved" />}
         </CardAction>
       </CardHeader>
       <CardContent>
@@ -95,15 +95,15 @@ function Section({
 function Automation({ current }: { current: Settings }) {
   const { settings } = useUpdater();
   return (
-    <Section title="Automatisierung" description="Wann geprüft und aktualisiert wird.">
+    <Section title="Automation" description="When to check for and install updates.">
       <SwitchField
-        label="Beim Anmelden prüfen"
-        description="Nach dem Start einmal nach Updates suchen und bei Funden benachrichtigen."
+        label="Check at sign-in"
+        description="Check for updates once after startup."
         checked={current.updateOnStartup}
         onChange={(updateOnStartup) => void settings.patch({ updateOnStartup })}
       />
       <FieldSeparator />
-      <SettingField label="Startverzögerung" description="Windows Zeit zum Hochfahren lassen.">
+      <SettingField label="Startup delay" description="Let Windows finish starting.">
         {(ids) => (
           <NumberStepper
             id={ids.control}
@@ -111,7 +111,7 @@ function Automation({ current }: { current: Settings }) {
             value={current.startupDelayMinutes}
             min={0}
             max={60}
-            unit="Min."
+            unit="min"
             disabled={!current.updateOnStartup}
             onChange={(startupDelayMinutes) => void settings.patch({ startupDelayMinutes })}
           />
@@ -119,13 +119,13 @@ function Automation({ current }: { current: Settings }) {
       </SettingField>
       <FieldSeparator />
       <SwitchField
-        label="Regelmäßig prüfen"
-        description="Zusätzlich in festem Abstand prüfen, solange die App läuft."
+        label="Scheduled checks"
+        description="Check periodically while the app is running."
         checked={current.periodicChecks}
         onChange={(periodicChecks) => void settings.patch({ periodicChecks })}
       />
       <FieldSeparator />
-      <SettingField label="Prüfintervall" description="Abstand zwischen zwei regelmäßigen Prüfungen.">
+      <SettingField label="Check interval" description="Time between scheduled checks.">
         {(ids) => (
           <NumberStepper
             id={ids.control}
@@ -133,7 +133,7 @@ function Automation({ current }: { current: Settings }) {
             value={current.checkIntervalHours}
             min={1}
             max={168}
-            unit="Std."
+            unit="hr"
             disabled={!current.periodicChecks}
             onChange={(checkIntervalHours) => void settings.patch({ checkIntervalHours })}
           />
@@ -141,15 +141,15 @@ function Automation({ current }: { current: Settings }) {
       </SettingField>
       <FieldSeparator />
       <SwitchField
-        label="Updates automatisch installieren"
-        description="Gefundene Updates ohne Rückfrage installieren. Aus: nur prüfen und benachrichtigen."
+        label="Install updates automatically"
+        description="When off, only check and notify."
         checked={current.autoUpdate}
         onChange={(autoUpdate) => void settings.patch({ autoUpdate })}
       />
       <FieldSeparator />
       <SwitchField
-        label="Mit Windows starten"
-        description="Beim Anmelden minimiert im Infobereich starten."
+        label="Start with Windows"
+        description="Start minimized in the system tray at sign-in."
         checked={current.autostart}
         onChange={(autostart) => void settings.patch({ autostart })}
       />
@@ -161,7 +161,7 @@ function Managers({ current }: { current: Settings }) {
   const { managers, settings, busy } = useUpdater();
   const enabled = current.enabledManagers;
   return (
-    <Section title="Paketmanager" description="Nur installierte und aktivierte Quellen werden geprüft.">
+    <Section title="Package managers" description="Only installed, enabled sources are checked.">
       <ResourceError error={managers.error} retry={managers.refresh} />
       {managers.loading && <Skeleton className="h-48" />}
       {managers.managers.map((manager, index) => (
@@ -187,26 +187,26 @@ function Managers({ current }: { current: Settings }) {
 }
 
 function managerHint(manager: ManagerInfo): string {
-  if (!manager.available) return "Installiere diesen Paketmanager, um ihn zu aktivieren.";
-  if (manager.requiresAdmin) return "Aktualisierungen benötigen Administratorrechte.";
-  return "Verfügbare Updates in die Prüfung einbeziehen.";
+  if (!manager.available) return "Install this package manager to enable it.";
+  if (manager.requiresAdmin) return "Updates require administrator privileges.";
+  return "Include this source when checking for updates.";
 }
 
 function Appearance({ current }: { current: Settings }) {
   const { settings } = useUpdater();
   return (
-    <Section title="Benachrichtigungen & Darstellung" description="Informiert bleiben, ohne gestört zu werden.">
+    <Section title="Notifications & appearance" description="Choose notifications and a theme.">
       <SwitchField
-        label="Windows-Benachrichtigungen"
-        description="Über gefundene Updates und abgeschlossene Aktualisierungen informieren."
+        label="Windows notifications"
+        description="Notify when updates are found or finished."
         checked={current.notify}
         onChange={(notify) => void settings.patch({ notify })}
       />
       <FieldSeparator />
-      <SettingField label="Erscheinungsbild" description="Hell, dunkel oder passend zu Windows.">
+      <SettingField label="Theme" description="Light, dark, or follow Windows.">
         {(ids) => (
           <Combobox
-            label="Erscheinungsbild"
+            label="Theme"
             aria-describedby={ids.description}
             value={current.theme}
             options={THEMES}
@@ -222,17 +222,17 @@ function Appearance({ current }: { current: Settings }) {
 function Winget({ current }: { current: Settings }) {
   const { settings } = useUpdater();
   return (
-    <Section title="WinGet-Erkennung" description="Zuverlässige Paket-IDs, auch bei langen Namen.">
+    <Section title="WinGet detection" description="Accurate package IDs, including long names.">
       <SwitchField
-        label="Unbekannte Versionen einbeziehen"
-        description="Auch Pakete prüfen, deren installierte Version WinGet nicht kennt."
+        label="Include unknown versions"
+        description="Check packages whose installed version WinGet cannot identify."
         checked={current.includeUnknownVersions}
         onChange={(includeUnknownVersions) => void settings.patch({ includeUnknownVersions })}
       />
       <FieldSeparator />
       <SettingField
-        label="PowerShell-Modul"
-        description="Microsoft.WinGet.Client für genauere Erkennung ohne abgeschnittene IDs. Startet keine Updates."
+        label="PowerShell module"
+        description="Use Microsoft.WinGet.Client for accurate IDs. Does not install updates."
       >
         {(ids) => <InstallWingetModule id={ids.control} describedBy={ids.description} />}
       </SettingField>
@@ -247,12 +247,12 @@ function InstallWingetModule({ id, describedBy }: { id: string; describedBy: str
     setInstalling(true);
     try {
       await installWingetModule();
-      toast.success("WinGet-PowerShell-Modul installiert", {
-        description: "Die nächste Prüfung verwendet die genauere Erkennung.",
+      toast.success("WinGet PowerShell module installed", {
+        description: "The next check will use the improved detection.",
       });
       void managers.refresh();
     } catch (error) {
-      toast.error("Modul konnte nicht installiert werden", {
+      toast.error("Module installation failed", {
         description: toAppError(error).message,
       });
     } finally {
@@ -268,7 +268,7 @@ function InstallWingetModule({ id, describedBy }: { id: string; describedBy: str
       onClick={() => void install()}
     >
       {installing ? <Spinner data-icon="inline-start" /> : <Download data-icon="inline-start" />}
-      Installieren
+      Install
     </Button>
   );
 }
@@ -279,8 +279,8 @@ function IgnoredPackages({ current }: { current: Settings }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ignorierte Pakete</CardTitle>
-        <CardDescription>Werden nie automatisch aktualisiert.</CardDescription>
+        <CardTitle>Ignored packages</CardTitle>
+        <CardDescription>Excluded from automatic updates.</CardDescription>
       </CardHeader>
       <CardContent>
         {ignored.length ? (
@@ -299,7 +299,7 @@ function IgnoredPackages({ current }: { current: Settings }) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      aria-label={`${name} wieder freigeben`}
+                      aria-label={`Stop ignoring ${name}`}
                       disabled={busy || settings.saving}
                       onClick={() =>
                         reference
@@ -310,7 +310,7 @@ function IgnoredPackages({ current }: { current: Settings }) {
                       }
                     >
                       <Trash2 data-icon="inline-start" />
-                      Freigeben
+                      Stop ignoring
                     </Button>
                   </ItemActions>
                 </Item>
@@ -323,9 +323,9 @@ function IgnoredPackages({ current }: { current: Settings }) {
               <EmptyMedia variant="icon">
                 <EyeOff />
               </EmptyMedia>
-              <EmptyTitle>Keine Ausnahmen</EmptyTitle>
+              <EmptyTitle>No ignored packages</EmptyTitle>
               <EmptyDescription>
-                Pakete lassen sich auf der Updates-Seite über das Aktionsmenü ignorieren.
+                Ignore packages from the action menu on the Updates page.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

@@ -40,13 +40,13 @@ export function useSettings() {
           confirmed.current = await persist(change(confirmed.current!));
           if (request === version.current) {
             replace(confirmed.current);
-            toast.success("Einstellungen gespeichert", {
+            toast.success("Settings saved", {
               id: "settings-saved",
             });
           }
         } catch (error) {
           if (request === version.current) replace(confirmed.current);
-          toast.error("Nicht gespeichert", {
+          toast.error("Not saved", {
             description: toAppError(error).message,
           });
         } finally {

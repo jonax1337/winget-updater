@@ -97,5 +97,5 @@ pub async fn install_winget_module(app: AppHandle) -> AppResult<()> {
 }
 
 fn background_error(error: impl std::fmt::Display) -> AppError {
-    AppError::Other(format!("Hintergrundaufgabe abgebrochen: {error}"))
+    AppError::Other(format!("Background task aborted: {error}"))
 }

@@ -40,7 +40,7 @@ export function Software() {
       <ResourceError error={installed.error} retry={installed.reload} />
       <ManagerErrors
         errors={installed.installed?.errors ?? []}
-        failure="konnte nicht gelesen werden"
+        failure="could not be read"
       />
       <div className="flex flex-wrap items-center gap-2">
         <PackageFilters filters={filters} />
@@ -54,7 +54,7 @@ export function Software() {
             data-icon="inline-start"
             className={installed.reloading ? "animate-spin" : undefined}
           />
-          Neu laden
+          Refresh
         </Button>
       </div>
       {installed.loading ? (
@@ -82,7 +82,7 @@ function softwareColumns(
 ): DataTableColumn<InstalledPackage>[] {
   return [
     column.accessor("name", {
-      header: "Anwendung",
+      header: "App",
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <PackageIcon package={row.original} name={row.original.name} />
@@ -98,12 +98,12 @@ function softwareColumns(
       cell: ({ row }) => <span className="font-mono text-xs">{row.original.version}</span>,
     }),
     column.accessor("manager", {
-      header: "Quelle",
+      header: "Source",
       cell: ({ row }) => <ManagerBadge manager={row.original.manager} />,
     }),
     column.display({
       id: "actions",
-      header: () => <span className="sr-only">Aktionen</span>,
+      header: () => <span className="sr-only">Actions</span>,
       cell: ({ row }) => (
         <PackageMenu
           entry={row.original}
@@ -122,9 +122,9 @@ function NoSoftware() {
         <EmptyMedia variant="icon">
           <AppWindow />
         </EmptyMedia>
-        <EmptyTitle>Keine Software gefunden</EmptyTitle>
+        <EmptyTitle>No software found</EmptyTitle>
         <EmptyDescription>
-          Die aktiven Paketmanager haben keine installierte Software gemeldet.
+          Your enabled sources reported no installed software.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

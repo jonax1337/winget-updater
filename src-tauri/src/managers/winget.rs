@@ -71,7 +71,7 @@ impl PackageManager for Winget {
         let output = process::run("winget", &args, UPDATE_TIMEOUT)?;
         if no_applicable_upgrade(&output) {
             return Err(AppError::Command(
-                "winget upgrade: Kein anwendbares Upgrade gefunden (0x8A15002B)".into(),
+                "winget upgrade: no applicable upgrade found (0x8A15002B)".into(),
             ));
         }
         output.ensure_success("winget upgrade")?;
@@ -121,7 +121,7 @@ fn run_powershell(query: &str) -> AppResult<CommandOutput> {
 }
 
 fn powershell_fallback_warning(error: &AppError) -> String {
-    format!("WinGet-PowerShell-Ausgabe nicht lesbar – Tabellen-Fallback genutzt: {error}")
+    format!("Could not read WinGet PowerShell output – using the table fallback: {error}")
 }
 
 fn upgrade_args(id: &str) -> Vec<&str> {
@@ -195,7 +195,7 @@ fn parse_powershell_rows(output: &str) -> AppResult<Vec<PowershellPackage>> {
     rows.into_iter()
         .map(|row| {
             serde_json::from_value(row)
-                .map_err(|error| AppError::Parse(format!("WinGet-PowerShell-Paket: {error}")))
+                .map_err(|error| AppError::Parse(format!("WinGet PowerShell package: {error}")))
         })
         .collect()
 }
@@ -263,12 +263,12 @@ fn read_table(clean: &str) -> AppResult<Option<WingetTable<'_>>> {
         if is_empty_package_list(clean) {
             return Ok(None);
         }
-        return Err(AppError::Parse("WinGet: Tabellenkopf fehlt".into()));
+        return Err(AppError::Parse("WinGet: table header is missing".into()));
     };
     let header = separator
         .checked_sub(1)
         .and_then(|index| lines.get(index))
-        .ok_or_else(|| AppError::Parse("WinGet: Tabellenkopf fehlt".into()))?;
+        .ok_or_else(|| AppError::Parse("WinGet: table header is missing".into()))?;
     Ok(Some(WingetTable {
         columns: column_starts(header),
         rows: lines[separator + 1..].to_vec(),
@@ -282,7 +282,7 @@ fn parse_winget_table(output: &str) -> AppResult<Upgrades> {
     };
     if table.columns.len() != 5 {
         return Err(AppError::Parse(
-            "WinGet: fünf Tabellenspalten erwartet".into(),
+            "WinGet: expected five table columns".into(),
         ));
     }
     let (packages, warnings) = parse_rows(&table, parse_table_row, |package| &package.id);
@@ -297,7 +297,7 @@ fn parse_winget_installed(output: &str) -> AppResult<Installed> {
     };
     if !(4..=5).contains(&table.columns.len()) {
         return Err(AppError::Parse(
-            "WinGet: vier oder fünf Tabellenspalten erwartet".into(),
+            "WinGet: expected four or five table columns".into(),
         ));
     }
     let (packages, warnings) = parse_rows(&table, parse_installed_row, |package| &package.id);
@@ -336,9 +336,18 @@ fn truncated_id_warnings(truncated: usize) -> Vec<String> {
     if truncated == 0 {
         return Vec::new();
     }
-    let noun = if truncated == 1 { "Paket" } else { "Pakete" };
+    let noun = if truncated == 1 {
+        "package"
+    } else {
+        "packages"
+    };
+    let ids = if truncated == 1 {
+        "a truncated ID"
+    } else {
+        "truncated IDs"
+    };
     vec![format!(
-        "{truncated} {noun} mit abgeschnittener ID – WinGet-PowerShell-Modul installieren"
+        "{truncated} {noun} with {ids} – install the WinGet PowerShell module"
     )]
 }
 
@@ -483,7 +492,7 @@ mod tests {
             parse_winget_table(include_str!("../../tests/fixtures/winget_truncated.txt")).unwrap();
         assert_eq!(
             upgrades.warnings,
-            vec!["1 Paket mit abgeschnittener ID – WinGet-PowerShell-Modul installieren"]
+            vec!["1 package with a truncated ID – install the WinGet PowerShell module"]
         );
         let packages = upgrades.packages;
         assert_eq!(packages.len(), 1);
@@ -593,7 +602,7 @@ mod tests {
                 .unwrap();
         assert_eq!(
             installed.warnings,
-            vec!["1 Paket mit abgeschnittener ID – WinGet-PowerShell-Modul installieren"]
+            vec!["1 package with a truncated ID – install the WinGet PowerShell module"]
         );
         assert_eq!(installed.packages.len(), 1);
         assert_eq!(installed.packages[0].id, "Vendor.Complete");
