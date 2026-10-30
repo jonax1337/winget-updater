@@ -124,6 +124,11 @@ pub async fn set_package_ignored(
 }
 
 pub fn apply_autostart(app: &AppHandle, enabled: bool) -> AppResult<()> {
+    // Debug builds open a console window and need the Vite dev server, so they must never be
+    // registered. They must not touch the entry either: an installed release build shares it.
+    if cfg!(debug_assertions) {
+        return Ok(());
+    }
     let autolaunch = app.autolaunch();
     let result = if enabled {
         autolaunch.enable()
