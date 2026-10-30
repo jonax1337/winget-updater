@@ -32,20 +32,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Generate release notes
-        id: notes
+      # tauri-action always sends the tag commit as target_commitish, which GitHub rejects
+      # for GITHUB_TOKEN with 403; a release created from the existing tag is accepted.
+      # The draft also keeps a failed build from leaving a public release without assets.
+      - name: Create draft release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          body=$(gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${GITHUB_REF_NAME}" --jq .body)
-          delimiter="NOTES_$(openssl rand -hex 16)"
-          {
-            echo "body<<$delimiter"
-            printf '%s\n' "$body"
-            echo "$delimiter"
-          } >> "$GITHUB_OUTPUT"
+          # Pre-release tags (v1.0.0-rc.1) must not reach the updater's latest.json.
+          prerelease=$([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease || true)
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+            --title "Winget Updater $GITHUB_REF_NAME" --generate-notes $prerelease
 
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # action-v0.6.2
         env:
@@ -54,9 +52,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Winget Updater ${{ github.ref_name }}
-          releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: false
-          # Pre-release tags (v1.0.0-rc.1) must not reach the updater's latest.json.
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          releaseDraft: true
           includeUpdaterJson: true
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
