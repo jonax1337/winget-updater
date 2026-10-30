@@ -11,10 +11,11 @@ import {
   onUpdateFinished,
   scanUpdates,
   toAppError,
+  uninstallPackage,
   updateAll,
   updatePackages,
 } from "@/lib/api";
-import { packageKey } from "@/lib/packages";
+import { packageKey, type NamedPackageRef } from "@/lib/packages";
 import { plural } from "@/lib/format";
 import type { Package, PackageRef, Settings, UpdateSummary } from "@/lib/types";
 
@@ -51,7 +52,7 @@ function useUpdaterState() {
   const managers = useManagers();
   const progress = useUpdateProgress();
   const lock = useRef(false);
-  const [operation, setOperation] = useState<"scan" | "update">();
+  const [operation, setOperation] = useState<"scan" | "update" | "uninstall">();
   useTheme(settings.settings?.theme);
   useBackendEvent(onUpdateFinished, notifySummary);
 
@@ -65,7 +66,8 @@ function useUpdaterState() {
     (entry) => progress.events.get(packageKey(entry))?.status !== "succeeded",
   );
   const scanning = run.state.scanning || operation === "scan";
-  const updating = run.state.updating || operation === "update";
+  const updating =
+    run.state.updating || operation === "update" || operation === "uninstall";
   const busy = scanning || updating;
   const ready =
     !run.loading && !run.error && !settings.loading && !settings.error;
@@ -129,6 +131,32 @@ function useUpdaterState() {
     }
   };
 
+  const uninstall = async ({ name, ...reference }: NamedPackageRef): Promise<boolean> => {
+    if (lock.current || busy || settings.saving) {
+      toast.warning("Gerade läuft ein anderer Vorgang", {
+        description: "Deinstallieren ist erst möglich, wenn er abgeschlossen ist.",
+      });
+      return false;
+    }
+    lock.current = true;
+    setOperation("uninstall");
+    try {
+      await uninstallPackage(reference);
+      toast.success(`${name} deinstalliert`);
+      return true;
+    } catch (error) {
+      toast.error("Deinstallation fehlgeschlagen", {
+        description: toAppError(error).message,
+      });
+      return false;
+    } finally {
+      lock.current = false;
+      setOperation(undefined);
+      void scan.refresh();
+      void run.refresh();
+    }
+  };
+
   return {
     run,
     scan,
@@ -144,6 +172,7 @@ function useUpdaterState() {
     ready,
     check,
     update,
+    uninstall,
   };
 }
 

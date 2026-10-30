@@ -98,7 +98,7 @@ fn commit_settings(app: &AppHandle, preferences: Settings) {
         if let Some(scan) = snapshot.last_scan.as_mut() {
             apply_ignored(&mut scan.packages, &preferences);
         }
-        snapshot.run.pending_updates = snapshot.last_scan.as_ref().map_or(0, pending_count);
+        recount_pending(&mut snapshot);
     }
     state.schedule.send_replace(preferences);
     publish_run_state(app);
@@ -184,51 +184,95 @@ async fn scan_locked(app: &AppHandle) -> AppResult<ScanResult> {
     Ok(result)
 }
 
-async fn collect_upgrades(preferences: &Settings) -> ScanResult {
+/// Runs `query` concurrently on every enabled manager; managers that are not installed yield `T::default()`.
+async fn query_enabled_managers<T: Default + Send + 'static>(
+    preferences: &Settings,
+    query: impl Fn(&dyn managers::PackageManager) -> AppResult<T> + Copy + Send + 'static,
+) -> Vec<(ManagerId, AppResult<T>)> {
     let mut tasks = Vec::new();
     for manager in managers::registry() {
         if !preferences.enabled_managers.contains(&manager.id()) {
             continue;
         }
-        let id = manager.id();
-        let include_unknown = preferences.include_unknown_versions;
         tasks.push((
-            id,
+            manager.id(),
             tauri::async_runtime::spawn_blocking(move || match manager.detect() {
-                Ok(None) => Ok(managers::Upgrades::default()),
-                Ok(Some(_)) => manager.list_upgrades(include_unknown),
+                Ok(None) => Ok(T::default()),
+                Ok(Some(_)) => query(manager.as_ref()),
                 Err(error) => Err(error),
             }),
         ));
     }
+    let mut outcomes = Vec::new();
+    for (manager, task) in tasks {
+        let outcome = task
+            .await
+            .unwrap_or_else(|error| Err(AppError::Other(format!("Prüfung abgebrochen: {error}"))));
+        outcomes.push((manager, outcome));
+    }
+    outcomes
+}
+
+fn manager_errors(manager: ManagerId, messages: Vec<String>) -> impl Iterator<Item = ManagerError> {
+    messages
+        .into_iter()
+        .map(move |message| ManagerError { manager, message })
+}
+
+fn failure_as_error(manager: ManagerId, error: AppError) -> ManagerError {
+    ManagerError {
+        manager,
+        message: error.to_string(),
+    }
+}
+
+async fn collect_upgrades(preferences: &Settings) -> ScanResult {
+    let include_unknown = preferences.include_unknown_versions;
+    let outcomes = query_enabled_managers(preferences, move |manager| {
+        manager.list_upgrades(include_unknown)
+    })
+    .await;
     let mut result = ScanResult {
         packages: Vec::new(),
         errors: Vec::new(),
         scanned_at: timestamp(),
     };
-    for (manager, task) in tasks {
-        match task.await {
-            Ok(Ok(upgrades)) => {
+    for (manager, outcome) in outcomes {
+        match outcome {
+            Ok(upgrades) => {
                 result.packages.extend(upgrades.packages);
-                result.errors.extend(
-                    upgrades
-                        .warnings
-                        .into_iter()
-                        .map(|message| ManagerError { manager, message }),
-                );
+                result
+                    .errors
+                    .extend(manager_errors(manager, upgrades.warnings));
             }
-            Ok(Err(error)) => result.errors.push(ManagerError {
-                manager,
-                message: error.to_string(),
-            }),
-            Err(error) => result.errors.push(ManagerError {
-                manager,
-                message: format!("Prüfung abgebrochen: {error}"),
-            }),
+            Err(error) => result.errors.push(failure_as_error(manager, error)),
         }
     }
     result.scanned_at = timestamp();
     result
+}
+
+pub async fn list_installed(app: &AppHandle) -> AppResult<InstalledResult> {
+    let preferences = get_settings(app);
+    let outcomes = query_enabled_managers(&preferences, |manager| manager.list_installed()).await;
+    let mut result = InstalledResult {
+        packages: Vec::new(),
+        errors: Vec::new(),
+        listed_at: timestamp(),
+    };
+    for (manager, outcome) in outcomes {
+        match outcome {
+            Ok(installed) => {
+                result.packages.extend(installed.packages);
+                result
+                    .errors
+                    .extend(manager_errors(manager, installed.warnings));
+            }
+            Err(error) => result.errors.push(failure_as_error(manager, error)),
+        }
+    }
+    result.listed_at = timestamp();
+    Ok(result)
 }
 
 fn apply_ignored(packages: &mut [Package], preferences: &Settings) {
@@ -403,14 +447,44 @@ async fn update_one(app: &AppHandle, package: Package, run: &mut UpdateRun) {
 }
 
 fn upgrade_package(package: PackageRef) -> AppResult<()> {
+    available_manager(&package)?.upgrade(&package.id)
+}
+
+fn available_manager(package: &PackageRef) -> AppResult<Box<dyn managers::PackageManager>> {
     let manager = managers::registry()
         .into_iter()
         .find(|manager| manager.id() == package.manager)
-        .ok_or_else(|| AppError::ManagerUnavailable(settings::package_key(&package)))?;
+        .ok_or_else(|| AppError::ManagerUnavailable(settings::package_key(package)))?;
     match manager.detect()? {
         None => Err(AppError::ManagerUnavailable(manager.display_name().into())),
-        Some(_) => manager.upgrade(&package.id),
+        Some(_) => Ok(manager),
     }
+}
+
+pub async fn uninstall(app: &AppHandle, package: PackageRef) -> AppResult<()> {
+    let _operation = Operation::begin(app, Activity::Uninstall)?;
+    let target = package.clone();
+    blocking(move || available_manager(&target)?.uninstall(&target.id)).await?;
+    forget_uninstalled(app, &package);
+    Ok(())
+}
+
+fn forget_uninstalled(app: &AppHandle, package: &PackageRef) {
+    {
+        let state = app.state::<AppState>();
+        let mut snapshot = state.snapshot();
+        if let Some(scan) = snapshot.last_scan.as_mut() {
+            remove_package(scan, package);
+        }
+        recount_pending(&mut snapshot);
+    }
+    publish_run_state(app);
+    refresh_tray(app);
+}
+
+fn remove_package(scan: &mut ScanResult, package: &PackageRef) {
+    scan.packages
+        .retain(|candidate| package_ref(candidate) != *package);
 }
 
 fn finish_update(app: &AppHandle, run: UpdateRun) -> AppResult<UpdateSummary> {
@@ -466,6 +540,10 @@ fn set_scanning(app: &AppHandle, scanning: bool) {
 fn set_updating(app: &AppHandle) {
     app.state::<AppState>().snapshot().run.updating = true;
     publish_run_state(app);
+}
+
+fn recount_pending(snapshot: &mut Snapshot) {
+    snapshot.run.pending_updates = snapshot.last_scan.as_ref().map_or(0, pending_count);
 }
 
 fn pending_count(scan: &ScanResult) -> u32 {
@@ -543,6 +621,7 @@ pub fn report_error(app: &AppHandle, error: &AppError) {
 enum Activity {
     Scan,
     Update,
+    Uninstall,
 }
 
 struct Operation {
@@ -561,7 +640,8 @@ impl Operation {
         {
             let mut snapshot = state.snapshot();
             snapshot.run.scanning = matches!(activity, Activity::Scan);
-            snapshot.run.updating = matches!(activity, Activity::Update);
+            // The UI has no separate uninstall state; both change installed packages.
+            snapshot.run.updating = matches!(activity, Activity::Update | Activity::Uninstall);
         }
         publish_run_state(app);
         Ok(Self {
@@ -616,6 +696,42 @@ mod tests {
             ..Settings::default()
         };
         assert!(!still_automatic(&package(), &preferences));
+    }
+    fn scan_with(packages: Vec<Package>) -> ScanResult {
+        ScanResult {
+            packages,
+            errors: Vec::new(),
+            scanned_at: "2025-01-01T00:00:00Z".into(),
+        }
+    }
+    #[test]
+    fn removing_uninstalled_package_keeps_other_managers_with_same_id() {
+        let mut other_manager = package();
+        other_manager.manager = ManagerId::Scoop;
+        let mut scan = scan_with(vec![package(), other_manager]);
+        remove_package(&mut scan, &package_ref(&package()));
+        assert_eq!(scan.packages.len(), 1);
+        assert_eq!(scan.packages[0].manager, ManagerId::Scoop);
+    }
+    #[test]
+    fn removing_unknown_package_changes_nothing() {
+        let mut scan = scan_with(vec![package()]);
+        let unknown = PackageRef {
+            manager: ManagerId::Npm,
+            id: "other".into(),
+        };
+        remove_package(&mut scan, &unknown);
+        assert_eq!(scan.packages.len(), 1);
+    }
+    #[test]
+    fn pending_count_after_removal_ignores_ignored_packages() {
+        let mut ignored = package();
+        ignored.id = "Vendor.Ignored".into();
+        ignored.ignored = true;
+        let mut scan = scan_with(vec![package(), ignored]);
+        assert_eq!(pending_count(&scan), 1);
+        remove_package(&mut scan, &package_ref(&package()));
+        assert_eq!(pending_count(&scan), 0);
     }
     #[test]
     fn notification_uses_singular_and_plural() {

@@ -5,7 +5,7 @@ mod scoop;
 mod winget;
 
 use crate::error::AppResult;
-use crate::models::{ManagerId, Package};
+use crate::models::{InstalledPackage, ManagerId, Package};
 
 #[derive(Debug, Default)]
 pub struct Upgrades {
@@ -15,6 +15,21 @@ pub struct Upgrades {
 
 impl From<Vec<Package>> for Upgrades {
     fn from(packages: Vec<Package>) -> Self {
+        Self {
+            packages,
+            warnings: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Installed {
+    pub packages: Vec<InstalledPackage>,
+    pub warnings: Vec<String>,
+}
+
+impl From<Vec<InstalledPackage>> for Installed {
+    fn from(packages: Vec<InstalledPackage>) -> Self {
         Self {
             packages,
             warnings: Vec::new(),
@@ -32,6 +47,9 @@ pub trait PackageManager: Send + Sync {
     /// Outdated packages. `ignored` is always `false` here; the engine applies settings.
     fn list_upgrades(&self, include_unknown_versions: bool) -> AppResult<Upgrades>;
     fn upgrade(&self, package_id: &str) -> AppResult<()>;
+    /// Everything this manager has installed, whether or not an update exists.
+    fn list_installed(&self) -> AppResult<Installed>;
+    fn uninstall(&self, package_id: &str) -> AppResult<()>;
 }
 
 pub fn registry() -> Vec<Box<dyn PackageManager>> {

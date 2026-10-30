@@ -1,0 +1,5 @@
+Name            Id                     Version  Source
+--------------------------------------------------------
+Git             Git.Git                2.55.0.5 winget
+Zettel          ARP\User\X64\Zettel    0.20.0
+2 Pakete haben Aktualisierungen.

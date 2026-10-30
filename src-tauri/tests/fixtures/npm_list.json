@@ -1,0 +1,9 @@
+{
+  "name": "lib",
+  "dependencies": {
+    "@example/cli": {"version": "1.0.0", "overridden": false},
+    "corepack": {"version": "0.34.0", "overridden": false},
+    "local-tool": {"version": "1.8.0", "resolved": "file:E:/DEV/local-tool", "overridden": false},
+    "typescript": {"version": "5.6.3", "overridden": false}
+  }
+}

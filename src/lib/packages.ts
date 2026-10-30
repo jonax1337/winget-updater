@@ -13,6 +13,28 @@ export const MANAGER_NAMES: Record<ManagerId, string> = {
 };
 
 
+export type ManagerFilter = ManagerId | "all";
+
+export const MANAGER_FILTERS = [
+  { value: "all" as ManagerFilter, label: "Alle Quellen" },
+  ...(Object.entries(MANAGER_NAMES) as [ManagerId, string][]).map(([value, label]) => ({
+    value: value as ManagerFilter,
+    label,
+  })),
+];
+
+export interface NamedPackageRef extends PackageRef {
+  name: string;
+}
+
+/** `query` must already be trimmed and lower-cased for the German locale. */
+export function matchesFilter(entry: NamedPackageRef, manager: ManagerFilter, query: string): boolean {
+  return (
+    (manager === "all" || entry.manager === manager) &&
+    `${entry.name} ${entry.id}`.toLocaleLowerCase("de-DE").includes(query)
+  );
+}
+
 export function packageKey(reference: PackageRef): string {
   return `${reference.manager}:${reference.id}`;
 }

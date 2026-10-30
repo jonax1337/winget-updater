@@ -36,6 +36,7 @@ describe("command adapter", () => {
     await api.getManagers();
     await api.scanUpdates();
     await api.getLastScan();
+    await api.listInstalled();
     await api.updateAll();
     await api.getRunState();
     await api.getSettings();
@@ -45,6 +46,7 @@ describe("command adapter", () => {
       "get_managers",
       "scan_updates",
       "get_last_scan",
+      "list_installed",
       "update_all",
       "get_run_state",
       "get_settings",
@@ -56,6 +58,10 @@ describe("command adapter", () => {
     await api.updatePackages([reference]);
     expect(invoke).toHaveBeenLastCalledWith("update_packages", {
       packages: [reference],
+    });
+    await api.uninstallPackage(reference);
+    expect(invoke).toHaveBeenLastCalledWith("uninstall_package", {
+      package: reference,
     });
     await api.setPackageIgnored(reference, true);
     expect(invoke).toHaveBeenLastCalledWith("set_package_ignored", {

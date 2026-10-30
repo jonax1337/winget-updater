@@ -1,16 +1,6 @@
-import { useDeferredValue, useState } from "react";
+import { useState } from "react";
 import type { RowSelectionState } from "@tanstack/react-table";
-import {
-  ArrowRight,
-  Download,
-  EllipsisVertical,
-  PackageCheck,
-  Search,
-  SearchX,
-  ShieldCheck,
-  TriangleAlert,
-} from "lucide-react";
-import { Combobox } from "@/components/combobox";
+import { ArrowRight, Download, PackageCheck, ShieldCheck } from "lucide-react";
 import {
   DataTable,
   dataTableColumns,
@@ -18,19 +8,18 @@ import {
   type DataTableColumn,
 } from "@/components/data-table";
 import { ManagerBadge } from "@/components/manager-badge";
+import { ManagerErrors } from "@/components/manager-errors";
+import { NoMatches, PackageFilters, usePackageFilters } from "@/components/package-filters";
 import { PackageIcon } from "@/components/package-icon";
+import { PackageMenu } from "@/components/package-menu";
 import { ResourceError } from "@/components/resource-error";
 import { StatusBadge } from "@/components/status-badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Empty,
@@ -40,69 +29,25 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUpdater } from "@/hooks/use-updater";
-import { MANAGER_NAMES, packageKey } from "@/lib/packages";
-import type { ManagerId, Package, ScanResult } from "@/lib/types";
-
-type ManagerFilter = ManagerId | "all";
-
-const MANAGER_FILTERS = [
-  { value: "all" as ManagerFilter, label: "Alle Quellen" },
-  ...(Object.entries(MANAGER_NAMES) as [ManagerId, string][]).map(([value, label]) => ({
-    value: value as ManagerFilter,
-    label,
-  })),
-];
+import { packageKey } from "@/lib/packages";
+import type { Package, ScanResult } from "@/lib/types";
 
 export function Updates() {
   const { scan, packages, actionable, busy, ready, settings, update } = useUpdater();
-  const [search, setSearch] = useState("");
-  const [manager, setManager] = useState<ManagerFilter>("all");
+  const filters = usePackageFilters();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const query = useDeferredValue(search.trim().toLocaleLowerCase("de-DE"));
-  const filtered = packages.filter(
-    (entry) =>
-      (manager === "all" || entry.manager === manager) &&
-      `${entry.name} ${entry.id}`.toLocaleLowerCase("de-DE").includes(query),
-  );
+  const filtered = packages.filter(filters.matches);
   const actionableKeys = new Set(actionable.map(packageKey));
   const selection = actionable.filter((entry) => rowSelection[packageKey(entry)]);
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
       <ResourceError error={scan.error} retry={scan.refresh} />
-      {scan.scan?.errors.map((error) => (
-        <Alert key={error.manager}>
-          <TriangleAlert className="text-warning" />
-          <AlertTitle>{MANAGER_NAMES[error.manager]} konnte nicht geprüft werden</AlertTitle>
-          <AlertDescription className="break-words">{error.message}</AlertDescription>
-        </Alert>
-      ))}
+      <ManagerErrors errors={scan.scan?.errors ?? []} failure="konnte nicht geprüft werden" />
       <div className="flex flex-wrap items-center gap-2">
-        <InputGroup className="max-w-sm">
-          <InputGroupAddon>
-            <Search />
-          </InputGroupAddon>
-          <InputGroupInput
-            aria-label="Pakete durchsuchen"
-            placeholder="Name oder Paket-ID suchen …"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </InputGroup>
-        <Combobox
-          label="Nach Quelle filtern"
-          value={manager}
-          options={MANAGER_FILTERS}
-          onChange={setManager}
-          className="w-44"
-        />
+        <PackageFilters filters={filters} />
         <Button
           className="ml-auto"
           disabled={busy || !ready || !selection.length || settings.saving}
@@ -204,32 +149,20 @@ function PackageActions({ entry }: { entry: Package }) {
   const locked = busy || !ready || settings.saving;
   const updatable = actionable.some((candidate) => packageKey(candidate) === packageKey(entry));
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8 text-muted-foreground data-[state=open]:bg-muted"
-          aria-label={`Aktionen für ${entry.name}`}
-        >
-          <EllipsisVertical />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem disabled={locked || !updatable} onSelect={() => void update([entry])}>
-          <Download />
-          Jetzt aktualisieren
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuCheckboxItem
-          checked={entry.ignored}
-          disabled={locked}
-          onCheckedChange={(value) => void settings.ignore(entry, value)}
-        >
-          Bei Auto-Updates ignorieren
-        </DropdownMenuCheckboxItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <PackageMenu entry={entry}>
+      <DropdownMenuItem disabled={locked || !updatable} onSelect={() => void update([entry])}>
+        <Download />
+        Jetzt aktualisieren
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuCheckboxItem
+        checked={entry.ignored}
+        disabled={locked}
+        onCheckedChange={(value) => void settings.ignore(entry, value)}
+      >
+        Bei Auto-Updates ignorieren
+      </DropdownMenuCheckboxItem>
+    </PackageMenu>
   );
 }
 
@@ -255,16 +188,3 @@ function NoUpdates({ scan }: { scan: ScanResult | null }) {
   );
 }
 
-function NoMatches() {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <SearchX />
-        </EmptyMedia>
-        <EmptyTitle>Keine passenden Pakete</EmptyTitle>
-        <EmptyDescription>Anderen Suchbegriff oder eine andere Quelle wählen.</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  );
-}

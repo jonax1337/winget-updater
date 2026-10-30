@@ -1,7 +1,7 @@
-use super::{PackageManager, Upgrades};
+use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
-use crate::models::{ManagerId, Package};
-use crate::process::{self, LIST_TIMEOUT, UPDATE_TIMEOUT};
+use crate::models::{InstalledPackage, ManagerId, Package};
+use crate::process::{self, CommandOutput, LIST_TIMEOUT, UNINSTALL_TIMEOUT, UPDATE_TIMEOUT};
 
 pub struct Chocolatey;
 
@@ -38,13 +38,54 @@ impl PackageManager for Chocolatey {
             &["upgrade", package_id, "-y", "--no-progress"],
             UPDATE_TIMEOUT,
         )?;
-        // Successful MSI installations may request or initiate a restart.
-        if matches!(output.exit_code, Some(1641 | 3010)) {
-            return Ok(());
-        }
-        output.ensure_success("choco upgrade")?;
-        Ok(())
+        ensure_success_or_restart(output, "choco upgrade")
     }
+
+    fn list_installed(&self) -> AppResult<Installed> {
+        let output = process::run("choco", &["list", "-r", "--local-only"], LIST_TIMEOUT)?
+            .ensure_success("choco list -r --local-only")?;
+        parse_chocolatey_list(&output.stdout).map(Installed::from)
+    }
+
+    fn uninstall(&self, package_id: &str) -> AppResult<()> {
+        process::validate_package_id(package_id)?;
+        let output = process::run(
+            "choco",
+            &["uninstall", package_id, "-y", "--no-progress"],
+            UNINSTALL_TIMEOUT,
+        )?;
+        ensure_success_or_restart(output, "choco uninstall")
+    }
+}
+
+/// Successful MSI installations may request or initiate a restart.
+fn ensure_success_or_restart(output: CommandOutput, command: &str) -> AppResult<()> {
+    if matches!(output.exit_code, Some(1641 | 3010)) {
+        return Ok(());
+    }
+    output.ensure_success(command)?;
+    Ok(())
+}
+
+/// Lines without a separator are warnings Chocolatey prints next to the `-r` output.
+fn parse_chocolatey_list(output: &str) -> AppResult<Vec<InstalledPackage>> {
+    let mut packages = Vec::new();
+    for line in output.lines().filter(|line| line.contains('|')) {
+        let fields: Vec<_> = line.split('|').map(str::trim).collect();
+        if fields.len() != 2 || fields.iter().any(|field| field.is_empty()) {
+            return Err(AppError::Parse(format!(
+                "Chocolatey: ungültige Paketzeile: {line}"
+            )));
+        }
+        packages.push(InstalledPackage {
+            manager: ManagerId::Chocolatey,
+            id: fields[0].into(),
+            name: fields[0].into(),
+            version: fields[1].into(),
+            source: None,
+        });
+    }
+    Ok(packages)
 }
 
 fn parse_chocolatey_outdated(output: &str) -> AppResult<Vec<Package>> {
@@ -91,6 +132,41 @@ mod tests {
         assert_eq!(packages[0].current_version, "24.8.0");
         assert_eq!(packages[0].available_version, "24.9.0");
         assert_eq!(packages[1].id, "git");
+    }
+
+    #[test]
+    fn parses_installed_packages() {
+        let packages =
+            parse_chocolatey_list(include_str!("../../tests/fixtures/choco_list.txt")).unwrap();
+        assert_eq!(packages.len(), 3);
+        assert_eq!(packages[1].id, "chocolatey");
+        assert_eq!(packages[1].version, "2.4.1");
+        assert_eq!(packages[2].name, "git");
+    }
+
+    #[test]
+    fn installed_list_ignores_warnings_and_rejects_broken_rows() {
+        let packages =
+            parse_chocolatey_list("Chocolatey v2.4.1\nWARNING: deprecated option\ngit|2.47.0\n")
+                .unwrap();
+        assert_eq!(packages.len(), 1);
+        assert!(parse_chocolatey_list("").unwrap().is_empty());
+        for row in ["git|", "|1.0", "git|1.0|extra"] {
+            assert!(parse_chocolatey_list(row).is_err(), "{row}");
+        }
+    }
+
+    #[test]
+    fn restart_request_counts_as_success() {
+        let output = |exit_code| CommandOutput {
+            success: false,
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: Some(exit_code),
+        };
+        assert!(ensure_success_or_restart(output(3010), "choco").is_ok());
+        assert!(ensure_success_or_restart(output(1641), "choco").is_ok());
+        assert!(ensure_success_or_restart(output(1), "choco").is_err());
     }
 
     #[test]

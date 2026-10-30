@@ -9,6 +9,7 @@ use crate::error::{AppError, AppResult};
 
 pub const LIST_TIMEOUT: Duration = Duration::from_secs(120);
 pub const UPDATE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+pub const UNINSTALL_TIMEOUT: Duration = UPDATE_TIMEOUT;
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -80,9 +81,11 @@ pub fn validate_package_id(package_id: &str) -> AppResult<()> {
     if valid {
         return Ok(());
     }
-    Err(AppError::Command(format!(
-        "Ungültige Paket-ID: {package_id:?}"
-    )))
+    Err(invalid_package_id(package_id))
+}
+
+pub fn invalid_package_id(package_id: &str) -> AppError {
+    AppError::Command(format!("Ungültige Paket-ID: {package_id:?}"))
 }
 
 pub fn run(program: &str, args: &[&str], timeout: Duration) -> AppResult<CommandOutput> {

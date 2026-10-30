@@ -1,0 +1,7 @@
+Installed apps:
+
+Name Version  Source Updated             Info
+---- -------  ------ -------             ----
+7zip 24.08    main   2024-11-02 18:30:12
+git  2.47.0.1 main   2024-12-01 09:12:44
+glow 2.0.0    extras 2024-10-15 14:03:21 Global install

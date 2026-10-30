@@ -20,6 +20,16 @@ pub fn get_last_scan(app: AppHandle) -> AppResult<Option<ScanResult>> {
 }
 
 #[tauri::command]
+pub async fn list_installed(app: AppHandle) -> AppResult<InstalledResult> {
+    engine::list_installed(&app).await
+}
+
+#[tauri::command]
+pub async fn uninstall_package(app: AppHandle, package: PackageRef) -> AppResult<()> {
+    engine::uninstall(&app, package).await
+}
+
+#[tauri::command]
 pub async fn update_packages(
     app: AppHandle,
     packages: Vec<PackageRef>,

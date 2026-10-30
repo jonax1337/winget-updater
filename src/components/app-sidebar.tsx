@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import {
+  AppWindow,
   ArrowDownToLine,
   History,
   LayoutDashboard,
@@ -10,11 +11,12 @@ import { NavSecondary } from "@/components/nav-secondary";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { useUpdater } from "@/hooks/use-updater";
 
-export type Page = "overview" | "updates" | "history" | "settings";
+export type Page = "overview" | "updates" | "software" | "history" | "settings";
 
 export const PAGE_TITLES: Record<Page, string> = {
   overview: "Übersicht",
   updates: "Updates",
+  software: "Software",
   history: "Verlauf",
   settings: "Einstellungen",
 };
@@ -36,6 +38,7 @@ export function AppSidebar({
       icon: <ArrowDownToLine />,
       badge: actionable.length,
     },
+    { id: "software", title: PAGE_TITLES.software, icon: <AppWindow /> },
     { id: "history", title: PAGE_TITLES.history, icon: <History /> },
   ];
   const secondary: NavItem<Page>[] = [

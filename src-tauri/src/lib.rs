@@ -29,6 +29,8 @@ pub fn run() {
             commands::get_managers,
             commands::scan_updates,
             commands::get_last_scan,
+            commands::list_installed,
+            commands::uninstall_package,
             commands::update_packages,
             commands::update_all,
             commands::get_run_state,

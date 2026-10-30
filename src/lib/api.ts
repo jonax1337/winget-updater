@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AppError,
   HistoryEntry,
+  InstalledResult,
   ManagerInfo,
   PackageRef,
   RunState,
@@ -73,6 +74,9 @@ async function onEvent<T>(
 export const getManagers = () => command<ManagerInfo[]>("get_managers");
 export const scanUpdates = () => command<ScanResult>("scan_updates");
 export const getLastScan = () => command<ScanResult | null>("get_last_scan");
+export const listInstalled = () => command<InstalledResult>("list_installed");
+export const uninstallPackage = (reference: PackageRef) =>
+  command<void>("uninstall_package", { package: reference });
 export const updatePackages = (packages: PackageRef[]) =>
   command<UpdateSummary>("update_packages", { packages });
 export const updateAll = () => command<UpdateSummary>("update_all");

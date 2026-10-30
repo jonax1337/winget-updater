@@ -9,12 +9,14 @@ export function useResource<T>(load: () => Promise<T>, initial: T) {
   const revision = useRef(0);
   const mounted = useRef(false);
 
-  const replace = useCallback((value: T) => {
+  const update = useCallback((change: (current: T) => T) => {
     revision.current += 1;
-    setData(value);
+    setData(change);
     setLoading(false);
     setError(undefined);
   }, []);
+
+  const replace = useCallback((value: T) => update(() => value), [update]);
 
   const refresh = useCallback(async () => {
     const request = ++revision.current;
@@ -39,5 +41,5 @@ export function useResource<T>(load: () => Promise<T>, initial: T) {
     };
   }, [refresh]);
 
-  return { data, loading, error, refresh, replace };
+  return { data, loading, error, refresh, replace, update };
 }

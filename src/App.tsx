@@ -14,6 +14,7 @@ import { UpdaterProvider, useUpdater } from "@/hooks/use-updater";
 import { History } from "@/pages/history";
 import { Overview } from "@/pages/overview";
 import { SettingsPage } from "@/pages/settings";
+import { Software } from "@/pages/software";
 import { Updates } from "@/pages/updates";
 
 function App() {
@@ -82,6 +83,8 @@ function CurrentPage({ page, navigate }: { page: Page; navigate: (page: Page) =>
       return <Overview navigate={navigate} />;
     case "updates":
       return <Updates />;
+    case "software":
+      return <Software />;
     case "history":
       return <History />;
     case "settings":

@@ -68,6 +68,25 @@ pub struct ScanResult {
     pub scanned_at: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledPackage {
+    pub manager: ManagerId,
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub source: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledResult {
+    pub packages: Vec<InstalledPackage>,
+    pub errors: Vec<ManagerError>,
+    /// RFC 3339
+    pub listed_at: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum UpdateStatus {
@@ -130,6 +149,8 @@ pub enum Theme {
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub auto_update: bool,
+    /// Without periodic checks the app only checks once after it starts (i.e. at login).
+    pub periodic_checks: bool,
     pub check_interval_hours: u32,
     pub update_on_startup: bool,
     pub startup_delay_minutes: u32,
@@ -150,8 +171,6 @@ impl Default for Settings {
             check_interval_hours: 6,
             update_on_startup: true,
             startup_delay_minutes: 2,
-    /// Without periodic checks the app only checks once after it starts (i.e. at login).
-    pub periodic_checks: bool,
             notify: true,
             autostart: true,
             include_unknown_versions: false,

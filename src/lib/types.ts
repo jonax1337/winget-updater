@@ -24,6 +24,12 @@ export interface Package extends PackageRef {
   ignored: boolean;
 }
 
+export interface InstalledPackage extends PackageRef {
+  name: string;
+  version: string;
+  source: string | null;
+}
+
 export interface ManagerError {
   manager: ManagerId;
   message: string;
@@ -33,6 +39,12 @@ export interface ScanResult {
   packages: Package[];
   errors: ManagerError[];
   scannedAt: string;
+}
+
+export interface InstalledResult {
+  packages: InstalledPackage[];
+  errors: ManagerError[];
+  listedAt: string;
 }
 
 export type UpdateStatus = "queued" | "running" | "succeeded" | "failed" | "skipped";
@@ -70,6 +82,7 @@ export type Theme = "system" | "light" | "dark";
 
 export interface Settings {
   autoUpdate: boolean;
+  periodicChecks: boolean;
   checkIntervalHours: number;
   updateOnStartup: boolean;
   startupDelayMinutes: number;
@@ -82,7 +95,6 @@ export interface Settings {
 }
 
 export interface AppError {
-  periodicChecks: boolean;
   kind: string;
   message: string;
 }

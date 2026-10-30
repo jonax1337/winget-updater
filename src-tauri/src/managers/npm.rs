@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use super::{PackageManager, Upgrades};
+use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
-use crate::models::{ManagerId, Package};
-use crate::process::{self, LIST_TIMEOUT, UPDATE_TIMEOUT};
+use crate::models::{InstalledPackage, ManagerId, Package};
+use crate::process::{self, LIST_TIMEOUT, UNINSTALL_TIMEOUT, UPDATE_TIMEOUT};
 
 pub struct Npm;
 
@@ -42,6 +42,24 @@ impl PackageManager for Npm {
             .ensure_success("npm install -g")?;
         Ok(())
     }
+
+    fn list_installed(&self) -> AppResult<Installed> {
+        let output = process::run("npm", &["ls", "-g", "--json", "--depth=0"], LIST_TIMEOUT)?;
+        // npm exits with 1 for problems such as unmet peer dependencies but still prints the tree.
+        if !output.success && output.exit_code != Some(1) {
+            return output
+                .ensure_success("npm ls -g --json")
+                .map(|_| Installed::default());
+        }
+        parse_npm_installed(&output.stdout).map(Installed::from)
+    }
+
+    fn uninstall(&self, package_id: &str) -> AppResult<()> {
+        process::validate_package_id(package_id)?;
+        process::run("npm", &["uninstall", "-g", package_id], UNINSTALL_TIMEOUT)?
+            .ensure_success("npm uninstall -g")?;
+        Ok(())
+    }
 }
 
 #[derive(Deserialize)]
@@ -68,9 +86,70 @@ fn parse_npm_outdated(output: &str) -> AppResult<Vec<Package>> {
         .collect())
 }
 
+#[derive(Deserialize)]
+struct Listing {
+    error: Option<serde_json::Value>,
+    #[serde(default)]
+    dependencies: BTreeMap<String, ListedPackage>,
+}
+
+#[derive(Deserialize)]
+struct ListedPackage {
+    version: Option<String>,
+}
+
+fn parse_npm_installed(output: &str) -> AppResult<Vec<InstalledPackage>> {
+    let listing: Listing = serde_json::from_str(output.trim().trim_start_matches('\u{feff}'))
+        .map_err(|error| AppError::Parse(format!("npm ls: {error}")))?;
+    if let Some(error) = listing.error {
+        return Err(AppError::Parse(format!("npm ls: {error}")));
+    }
+    Ok(listing
+        .dependencies
+        .into_iter()
+        .map(|(name, package)| InstalledPackage {
+            manager: ManagerId::Npm,
+            id: name.clone(),
+            name,
+            version: package.version.unwrap_or_else(|| "Unknown".into()),
+            source: Some("npm".into()),
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_installed_global_packages() {
+        let packages =
+            parse_npm_installed(include_str!("../../tests/fixtures/npm_list.json")).unwrap();
+        assert_eq!(packages.len(), 4);
+        assert_eq!(packages[0].id, "@example/cli");
+        assert_eq!(packages[0].version, "1.0.0");
+        assert_eq!(packages[0].source.as_deref(), Some("npm"));
+        assert_eq!(packages[2].id, "local-tool");
+    }
+
+    #[test]
+    fn installed_without_dependencies_or_version() {
+        assert!(parse_npm_installed(r#"{"name":"lib"}"#).unwrap().is_empty());
+        let packages =
+            parse_npm_installed(r#"{"dependencies":{"broken":{"missing":true}}}"#).unwrap();
+        assert_eq!(packages[0].version, "Unknown");
+    }
+
+    #[test]
+    fn installed_error_objects_and_invalid_json_are_rejected() {
+        for output in [
+            r#"{"error":{"code":"EJSONPARSE","summary":"Unexpected token"}}"#,
+            "not json",
+            "null",
+        ] {
+            assert!(parse_npm_installed(output).is_err(), "{output}");
+        }
+    }
 
     #[test]
     fn parses_scoped_names_and_uses_latest_not_wanted() {

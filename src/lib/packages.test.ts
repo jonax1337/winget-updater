@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { initials, managerVersionLabel, packageKey, parsePackageKey } from "./packages";
+import {
+  initials,
+  managerVersionLabel,
+  matchesFilter,
+  packageKey,
+  parsePackageKey,
+} from "./packages";
 import type { ManagerInfo } from "./types";
 
 describe("managerVersionLabel", () => {
@@ -46,3 +52,15 @@ describe("initials", () => {
   });
 });
 
+describe("matchesFilter", () => {
+  const entry = { manager: "winget" as const, id: "Microsoft.PowerToys", name: "PowerToys" };
+  it("matches name and ID case-insensitively", () => {
+    expect(matchesFilter(entry, "all", "powertoys")).toBe(true);
+    expect(matchesFilter(entry, "all", "microsoft.power")).toBe(true);
+    expect(matchesFilter(entry, "all", "git")).toBe(false);
+  });
+  it("restricts to the selected manager", () => {
+    expect(matchesFilter(entry, "winget", "")).toBe(true);
+    expect(matchesFilter(entry, "scoop", "")).toBe(false);
+  });
+});
