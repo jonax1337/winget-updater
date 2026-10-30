@@ -52,9 +52,11 @@ Kein Manager ruft `std::process::Command` direkt auf.
 |-------|--------|
 | `models.rs` | **Vertrag** – alle serialisierbaren Typen (nicht ohne Not ändern) |
 | `error.rs` | **Vertrag** – `AppError` |
-| `managers/mod.rs` | **Vertrag** – Trait `PackageManager` (`detect() -> AppResult<Option<String>>`, `list_upgrades() -> AppResult<Upgrades { packages, warnings }>`), `registry()` |
+| `managers/mod.rs` | **Vertrag** – Trait `PackageManager` (`detect() -> AppResult<Option<String>>`, `list_upgrades() -> AppResult<Upgrades { packages, warnings }>`, `list_installed() -> AppResult<Installed { packages, warnings }>`, `uninstall(id)`), `registry()` |
 | `managers/{winget,scoop,chocolatey,npm,pip}.rs` | je ein Manager inkl. Parser + Unit-Tests |
 | `process.rs` | Prozess-Runner |
+| `installed.rs` | Registry-Index installierter Apps (`Uninstall`-Keys, Name-Matching, Scoop-Pfade) – gemeinsam genutzt von `icons.rs` und `running.rs` |
+| `running.rs` | Laufende-App-Gate: Installationsverzeichnisse eines Pakets + Prozessliste (Toolhelp32) → laufende EXEs; Vollbild/Präsentation via `SHQueryUserNotificationState` |
 | `icons.rs` | App-Icons aus Registry (`Uninstall`-Keys HKLM/HKCU/WOW6432, `DisplayIcon`) → PNG 32×32 → Data-URL, Disk-Cache im App-Cache-Dir |
 | `settings.rs` | Laden/Speichern `Settings` via tauri-plugin-store (`settings.json`), Defaults |
 | `history.rs` | Verlauf via store (`history.json`), max. 500 Einträge, neueste zuerst |
@@ -71,8 +73,11 @@ Kein Manager ruft `std::process::Command` direkt auf.
 | `get_managers` | – | `ManagerInfo[]` |
 | `scan_updates` | – | `ScanResult` |
 | `get_last_scan` | – | `ScanResult \| null` |
-| `update_packages` | `packages: PackageRef[]` | `UpdateSummary` |
-| `update_all` | – | `UpdateSummary` |
+| `list_installed` | – | `InstalledResult` (alle installierten Programme der aktiven Paketmanager, bei Bedarf geladen) |
+| `uninstall_package` | `package: PackageRef` | – (nur über den Manager des Pakets; entfernt es aus dem letzten Scan) |
+| `update_packages` | `packages: PackageRef[], skipRunning: boolean` | `UpdateSummary` |
+| `update_all` | `skipRunning: boolean` | `UpdateSummary` |
+| `check_running` | `packages: PackageRef[]` | `RunningApp[]` (nur Pakete mit laufenden Prozessen) |
 | `get_run_state` | – | `RunState` |
 | `get_settings` | – | `Settings` |
 | `save_settings` | `settings: Settings` | `Settings` (wendet Autostart an, plant Scheduler neu) |
@@ -107,6 +112,29 @@ Alle Commands: `Result<T, AppError>`; `AppError` serialisiert als `{ kind, messa
 - Manager-Warnungen (z. B. abgeschnittene winget-IDs) landen als `ManagerError` im `ScanResult`.
 - Ignorierte Pakete: Schlüssel `"<manager>:<id>"` in `Settings.ignored_packages`; werden gelistet
   (`ignored: true`), aber nie automatisch aktualisiert.
+
+## Laufende-Apps-Gate
+
+- **Erkennung** (`running.rs`): Installationsverzeichnisse je Paket – winget/chocolatey über den Registry-Index
+  (`InstallLocation`, sonst Ordner der `DisplayIcon`-EXE), scoop `~/scoop/apps/<id>`, chocolatey zusätzlich
+  `%ChocolateyInstall%\lib\<id>`; npm/pip werden nie geprüft. Zu allgemeine Verzeichnisse (Laufwerkswurzel,
+  `Program Files*`, `%WINDIR%`, Benutzerprofil, `AppData\Local|Roaming`, `AppData\Local\Programs`,
+  `ProgramData`) werden verworfen. Ein Prozess „läuft“, wenn sein Image-Pfad (case-insensitiv) unter einem
+  dieser Verzeichnisse liegt; der eigene Prozess zählt nie. Ergebnis: EXE-Dateinamen, dedupliziert, sortiert.
+- **`skipRunning = true`**: Paket mit laufenden Prozessen wird nicht installiert, sondern `skipped` mit Meldung
+  „Läuft gerade (Discord.exe) – wird beim nächsten Durchlauf erneut versucht“; zählt in `UpdateSummary.skipped`;
+  kein Verlaufseintrag. Die Prüfung erfolgt unmittelbar vor jedem einzelnen Paket.
+- Scheduler und Tray-„Alle aktualisieren“ nutzen `skipRunning = settings.skip_running_apps`.
+  Das Frontend ruft vor manuellen Updates `check_running` auf und fragt bei Treffern nach
+  („Trotzdem aktualisieren“ → `false`, „Laufende überspringen“ → `true`, „Abbrechen“).
+- **Vollbild-Gate**: Ist `defer_while_busy` an und meldet `SHQueryUserNotificationState` `QUNS_BUSY`,
+  `QUNS_RUNNING_D3D_FULL_SCREEN` oder `QUNS_PRESENTATION_MODE`, führt der *Scheduler* nach dem Scan keine
+  Updates aus und versucht es nach `min(15 min, Intervall)` erneut (`next_scan` entsprechend). Manuelle Aktionen
+  sind nicht betroffen.
+- Vertragstypen (`models.rs` ↔ `types.ts`): `RunningApp { package: PackageRef, processes: string[] }`;
+  `UpdateSummary.skipped: u32`; `Settings.skip_running_apps` / `skipRunningApps` und
+  `Settings.defer_while_busy` / `deferWhileBusy` (beide `bool`, Default `true`).
+- Benachrichtigung nach Lauf: „X erfolgreich, Y fehlgeschlagen“ + bei `skipped > 0` „, Z zurückgestellt“.
 
 ## UI (Frontend, `src/`)
 
