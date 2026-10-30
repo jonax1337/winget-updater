@@ -7,3 +7,7 @@ src-tauri/gen/schemas
 !.vscode/extensions.json
 .playwright-mcp/
 .projectatlas/
+
+# Local AI agent configuration
+.claude/
+.codex/
