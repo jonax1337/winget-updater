@@ -1,7 +1,7 @@
 import { ArrowRight, Blocks, ShieldCheck } from "lucide-react";
 import { Label, Pie, PieChart } from "recharts";
 import type { Page } from "@/components/app-sidebar";
-import { ManagerBadge } from "@/components/manager-badge";
+import { ManagerDot } from "@/components/manager-badge";
 import { ResourceError } from "@/components/resource-error";
 import { SectionCards } from "@/components/section-cards";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import {
   ItemContent,
   ItemDescription,
   ItemGroup,
+  ItemTitle,
 } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUpdater } from "@/hooks/use-updater";
@@ -73,7 +74,7 @@ export function Overview({ navigate }: { navigate: (page: Page) => void }) {
 
 function UpdatesBySource({ onShowAll }: { onShowAll: () => void }) {
   const { actionable } = useUpdater();
-  const data = (Object.keys(MANAGER_NAMES) as ManagerId[])
+  const data: SourceSlice[] = (Object.keys(MANAGER_NAMES) as ManagerId[])
     .map((manager) => ({
       manager,
       updates: actionable.filter((entry) => entry.manager === manager).length,
@@ -94,27 +95,10 @@ function UpdatesBySource({ onShowAll }: { onShowAll: () => void }) {
       </CardHeader>
       <CardContent className="flex-1">
         {data.length ? (
-          <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-64">
-            <PieChart>
-              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-              <Pie data={data} dataKey="updates" nameKey="manager" innerRadius={60} strokeWidth={5}>
-                <Label
-                  content={({ viewBox }) =>
-                    viewBox && "cx" in viewBox && "cy" in viewBox ? (
-                      <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                        <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-3xl font-bold">
-                          {actionable.length}
-                        </tspan>
-                        <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 24} className="fill-muted-foreground">
-                          Updates
-                        </tspan>
-                      </text>
-                    ) : null
-                  }
-                />
-              </Pie>
-            </PieChart>
-          </ChartContainer>
+          <>
+            <SourceChart data={data} total={actionable.length} />
+            <SourceLegend data={data} />
+          </>
         ) : (
           <Empty>
             <EmptyHeader>
@@ -128,6 +112,52 @@ function UpdatesBySource({ onShowAll }: { onShowAll: () => void }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+interface SourceSlice {
+  manager: ManagerId;
+  updates: number;
+  fill: string;
+}
+
+function SourceChart({ data, total }: { data: SourceSlice[]; total: number }) {
+  return (
+    <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-56">
+      <PieChart>
+        <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+        <Pie data={data} dataKey="updates" nameKey="manager" innerRadius={60} strokeWidth={5}>
+          <Label
+            content={({ viewBox }) =>
+              viewBox && "cx" in viewBox && "cy" in viewBox ? (
+                <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                  <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-3xl font-bold">
+                    {total}
+                  </tspan>
+                  <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 24} className="fill-muted-foreground">
+                    Updates
+                  </tspan>
+                </text>
+              ) : null
+            }
+          />
+        </Pie>
+      </PieChart>
+    </ChartContainer>
+  );
+}
+
+function SourceLegend({ data }: { data: SourceSlice[] }) {
+  return (
+    <ul aria-label="Legende" className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+      {data.map((entry) => (
+        <li key={entry.manager} className="flex items-center gap-2">
+          <ManagerDot manager={entry.manager} />
+          {MANAGER_NAMES[entry.manager]}
+          <span className="ml-auto text-muted-foreground tabular-nums">{entry.updates}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -150,8 +180,15 @@ function ManagerStatus() {
             : managers.managers.map((manager) => (
                 <Item key={manager.id} variant="outline" size="sm">
                   <ItemContent>
-                    <ManagerBadge manager={manager.id} />
-                    <ItemDescription>{managerVersionLabel(manager)}</ItemDescription>
+                    <ItemTitle>
+                      <ManagerDot manager={manager.id} />
+                      {manager.name}
+                    </ItemTitle>
+                    {manager.available && (
+                      <ItemDescription className="font-mono text-xs">
+                        {managerVersionLabel(manager)}
+                      </ItemDescription>
+                    )}
                   </ItemContent>
                   <ItemActions>
                     <ManagerState

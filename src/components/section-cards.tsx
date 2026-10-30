@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { CalendarClock, Clock3, PackageCheck, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardAction,
@@ -19,7 +18,7 @@ export function SectionCards() {
   const ignored = packages.filter((entry) => entry.ignored).length;
   const current = settings.settings;
   return (
-    <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+    <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
       <SectionCard
         label="Verfügbare Updates"
         icon={<PackageCheck />}
@@ -85,11 +84,11 @@ function SectionCard({
         <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
           {loading ? <Skeleton className="h-8 w-24" /> : value}
         </CardTitle>
-        <CardAction>
-          <Badge variant="outline">{icon}</Badge>
-        </CardAction>
+        <CardAction className="text-muted-foreground [&_svg]:size-4">{icon}</CardAction>
       </CardHeader>
-      <CardFooter className="text-sm text-muted-foreground">{footer}</CardFooter>
+      <CardFooter className="border-t-0 bg-transparent pt-0 text-sm text-muted-foreground">
+        {footer}
+      </CardFooter>
     </Card>
   );
 }

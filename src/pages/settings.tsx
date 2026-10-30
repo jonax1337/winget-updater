@@ -78,7 +78,7 @@ function Section({
   const { settings } = useUpdater();
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="border-b">
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
         <CardAction className="text-muted-foreground" aria-live="polite">
