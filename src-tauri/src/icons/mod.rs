@@ -9,18 +9,23 @@ use tauri::Manager;
 use crate::error::{AppError, AppResult};
 use crate::models::{ManagerId, PackageRef};
 
+mod http;
+mod metadata;
+mod online;
+mod raster;
+mod site_icon;
+
 const INDEX_TTL: Duration = Duration::from_secs(10 * 60);
 const ICON_SIZE: u32 = 32;
+// Windows limits a file name to 255 characters; the hex encoding doubles the id length.
+const MAX_READABLE_ID_LEN: usize = 200;
 
-/// Returns a locally extracted PNG data URL, or no icon for unsupported/unmatched packages.
+/// Returns a PNG data URL from the local installation or, failing that, the publisher's website.
 pub fn package_icon(
     app: &tauri::AppHandle,
     package: &crate::models::PackageRef,
     name: &str,
 ) -> crate::error::AppResult<Option<String>> {
-    if matches!(package.manager, ManagerId::Npm | ManagerId::Pip) {
-        return Ok(None);
-    }
     let directory = app
         .path()
         .app_cache_dir()
@@ -46,12 +51,27 @@ fn data_url(bytes: &[u8]) -> String {
 
 fn cache_filename(package: &PackageRef) -> String {
     let manager = package.manager.as_str();
-    let id: String = package
+    let readable: String = package
         .id
         .bytes()
         .map(|byte| format!("{byte:02x}"))
         .collect();
+    // The "h" prefix cannot occur in hex, so a hash never collides with a readable name.
+    let id = if readable.len() <= MAX_READABLE_ID_LEN {
+        readable
+    } else {
+        format!("h{:016x}", fnv1a_64(package.id.as_bytes()))
+    };
     format!("{manager}_{id}.png")
+}
+
+// Hand-rolled because `DefaultHasher` may change between Rust versions and orphan cached files.
+fn fnv1a_64(bytes: &[u8]) -> u64 {
+    const OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0100_0000_01b3;
+    bytes.iter().fold(OFFSET_BASIS, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(PRIME)
+    })
 }
 
 // The outer option distinguishes a cache miss from a cached negative lookup.
@@ -265,32 +285,49 @@ fn first_executable(directory: &Path) -> Option<IconSource> {
         .map(|path| IconSource { path, index: 0 })
 }
 
-fn scoop_source(id: &str) -> Option<IconSource> {
-    // Package IDs must not escape the Scoop apps directory.
-    if id.is_empty()
-        || !id.chars().all(|character| {
+fn is_plain_path_segment(id: &str) -> bool {
+    !id.is_empty()
+        && id.chars().all(|character| {
             character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
         })
-        || matches!(id, "." | "..")
-    {
-        return None;
-    }
-    let home = std::env::var_os("USERPROFILE")?;
-    first_executable(
-        &PathBuf::from(home)
-            .join("scoop/apps")
-            .join(id)
-            .join("current"),
-    )
+        && !matches!(id, "." | "..")
+}
+
+fn scoop_root() -> Option<PathBuf> {
+    std::env::var_os("SCOOP")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join("scoop")))
+}
+
+fn scoop_current_directory(id: &str) -> Option<PathBuf> {
+    // Package IDs must not escape the Scoop apps directory.
+    is_plain_path_segment(id).then_some(())?;
+    Some(scoop_root()?.join("apps").join(id).join("current"))
+}
+
+fn scoop_source(id: &str) -> Option<IconSource> {
+    first_executable(&scoop_current_directory(id)?)
 }
 
 fn find_icon(package: &PackageRef, name: &str) -> AppResult<Option<Vec<u8>>> {
-    if package.manager == ManagerId::Scoop {
-        return scoop_source(&package.id)
+    if let Some(png) = find_local_icon(package, name)? {
+        return Ok(Some(png));
+    }
+    Ok(online::download_icon(package))
+}
+
+fn find_local_icon(package: &PackageRef, name: &str) -> AppResult<Option<Vec<u8>>> {
+    match package.manager {
+        ManagerId::Npm | ManagerId::Pip => Ok(None),
+        ManagerId::Scoop => scoop_source(&package.id)
             .map(|source| extract_png(&source))
             .transpose()
-            .map(Option::flatten);
+            .map(Option::flatten),
+        ManagerId::Winget | ManagerId::Chocolatey => registry_icon(package, name),
     }
+}
+
+fn registry_icon(package: &PackageRef, name: &str) -> AppResult<Option<Vec<u8>>> {
     for entry in registry_matches(package, name)? {
         if let Some(source) = parse_display_icon(&entry.display_icon)
             && let Some(png) = extract_png(&source)?
@@ -498,28 +535,31 @@ fn resize_rgba(pixels: &[u8], width: u32, height: u32) -> Vec<u8> {
 fn extract_png(source: &IconSource) -> AppResult<Option<Vec<u8>>> {
     #[cfg(windows)]
     {
-        let Some(pixels) = native::extract(source) else {
-            return Ok(None);
-        };
-        let mut png = Vec::new();
-        {
-            let mut encoder = png::Encoder::new(&mut png, ICON_SIZE, ICON_SIZE);
-            encoder.set_color(png::ColorType::Rgba);
-            encoder.set_depth(png::BitDepth::Eight);
-            let mut writer = encoder
-                .write_header()
-                .map_err(|error| AppError::Other(format!("Icon-PNG: {error}")))?;
-            writer
-                .write_image_data(&pixels)
-                .map_err(|error| AppError::Other(format!("Icon-PNG: {error}")))?;
-        }
-        Ok(Some(png))
+        native::extract(source)
+            .map(|pixels| encode_png(&pixels))
+            .transpose()
     }
     #[cfg(not(windows))]
     {
         let _ = source;
         Ok(None)
     }
+}
+
+fn encode_png(pixels: &[u8]) -> AppResult<Vec<u8>> {
+    let mut png = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut png, ICON_SIZE, ICON_SIZE);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .map_err(|error| AppError::Other(format!("Icon-PNG: {error}")))?;
+        writer
+            .write_image_data(pixels)
+            .map_err(|error| AppError::Other(format!("Icon-PNG: {error}")))?;
+    }
+    Ok(png)
 }
 
 #[cfg(test)]
@@ -542,6 +582,36 @@ mod tests {
             .expect("valid PNG");
         assert_eq!((reader.info().width, reader.info().height), (32, 32));
         assert_eq!(reader.info().color_type, png::ColorType::Rgba);
+    }
+
+    fn package_with_id(id: String) -> PackageRef {
+        PackageRef {
+            manager: ManagerId::Winget,
+            id,
+        }
+    }
+
+    #[test]
+    fn icons_cache_filename_keeps_short_ids_readable() {
+        assert_eq!(
+            cache_filename(&package_with_id("a.B".into())),
+            "winget_612e42.png"
+        );
+    }
+
+    #[test]
+    fn icons_cache_filename_hashes_long_ids_to_a_stable_short_name() {
+        let first = cache_filename(&package_with_id("a".repeat(150)));
+        let second = cache_filename(&package_with_id("b".repeat(150)));
+        assert!(first.len() < 255);
+        assert_eq!(first, cache_filename(&package_with_id("a".repeat(150))));
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn icons_fnv1a_matches_reference_vectors() {
+        assert_eq!(fnv1a_64(b""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(fnv1a_64(b"a"), 0xaf63_dc4c_8601_ec8c);
     }
 
     #[test]

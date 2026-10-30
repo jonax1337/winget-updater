@@ -1,0 +1,20 @@
+Gefunden uv [astral-sh.uv]
+Version: 0.13.6
+Herausgeber: Astral Software Inc.
+Herausgeber-URL: https://astral.sh/
+Herausgeber-Support-URL: https://github.com/astral-sh/uv/issues
+Autor: Astral Software Inc.
+Moniker: uv
+Beschreibung: An extremely fast Python package and project manager, written in Rust.
+Startseite: https://github.com/astral-sh/uv
+Lizenz: Apache-2.0 or MIT
+Lizenz-URL: https://github.com/astral-sh/uv/blob/HEAD/README.md#license
+Copyright: Copyright (c) 2026 Astral Software Inc.
+Versionshinweise:
+  Released on 2026-10-26.
+  Enhancements
+  - Accept an empty UV_RUN_RECURSION_DEPTH as zero (#22814)
+Dokumentation:
+  Dokumentation: https://docs.astral.sh/uv/
+Tags:
+  python
