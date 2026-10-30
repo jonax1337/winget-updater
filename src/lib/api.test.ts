@@ -13,6 +13,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 const reference = { manager: "npm" as const, id: "@scope/tool" };
 const settings: Settings = {
   autoUpdate: true,
+  periodicChecks: false,
   checkIntervalHours: 6,
   updateOnStartup: true,
   startupDelayMinutes: 2,

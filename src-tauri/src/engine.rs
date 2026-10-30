@@ -102,7 +102,7 @@ fn commit_settings(app: &AppHandle, preferences: Settings) {
     }
     state.schedule.send_replace(preferences);
     publish_run_state(app);
-    refresh_tooltip(app);
+    refresh_tray(app);
 }
 
 pub async fn set_package_ignored(
@@ -173,7 +173,7 @@ async fn scan_locked(app: &AppHandle) -> AppResult<ScanResult> {
     store_scan(app, &mut result);
     let current = get_settings(app);
     emit(app, "scan-finished", result.clone());
-    refresh_tooltip(app);
+    refresh_tray(app);
     if current.notify && !current.auto_update && pending_count(&result) > 0 {
         notify(
             app,
@@ -453,8 +453,8 @@ pub async fn install_winget_module(app: &AppHandle) -> AppResult<()> {
     .await
 }
 
-pub fn set_next_scan(app: &AppHandle, next: String) {
-    app.state::<AppState>().snapshot().run.next_scan = Some(next);
+pub fn set_next_scan(app: &AppHandle, next: Option<String>) {
+    app.state::<AppState>().snapshot().run.next_scan = next;
     publish_run_state(app);
 }
 
@@ -521,9 +521,9 @@ fn emit(app: &AppHandle, event: &str, payload: impl Serialize + Clone) {
     }
 }
 
-fn refresh_tooltip(app: &AppHandle) {
-    if let Err(error) = tray::update_tooltip(app, get_run_state(app).pending_updates) {
-        eprintln!("Tray-Tooltip konnte nicht aktualisiert werden: {error}");
+fn refresh_tray(app: &AppHandle) {
+    if let Err(error) = tray::show_pending_updates(app, get_run_state(app).pending_updates) {
+        eprintln!("Tray konnte nicht aktualisiert werden: {error}");
     }
 }
 

@@ -82,6 +82,7 @@ export interface Settings {
 }
 
 export interface AppError {
+  periodicChecks: boolean;
   kind: string;
   message: string;
 }

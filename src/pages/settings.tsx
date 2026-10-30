@@ -97,29 +97,8 @@ function Automation({ current }: { current: Settings }) {
   return (
     <Section title="Automatisierung" description="Wann geprüft und aktualisiert wird.">
       <SwitchField
-        label="Updates automatisch installieren"
-        description="Nach jeder Prüfung alle nicht ignorierten Pakete aktualisieren."
-        checked={current.autoUpdate}
-        onChange={(autoUpdate) => void settings.patch({ autoUpdate })}
-      />
-      <FieldSeparator />
-      <SettingField label="Prüfintervall" description="Abstand zwischen zwei automatischen Prüfungen.">
-        {(ids) => (
-          <NumberStepper
-            id={ids.control}
-            describedBy={ids.description}
-            value={current.checkIntervalHours}
-            min={1}
-            max={168}
-            unit="Std."
-            onChange={(checkIntervalHours) => void settings.patch({ checkIntervalHours })}
-          />
-        )}
-      </SettingField>
-      <FieldSeparator />
-      <SwitchField
-        label="Nach dem App-Start prüfen"
-        description="Nach der Startverzögerung eine erste Prüfung ausführen."
+        label="Beim Anmelden prüfen"
+        description="Nach dem Start einmal nach Updates suchen und bei Funden benachrichtigen."
         checked={current.updateOnStartup}
         onChange={(updateOnStartup) => void settings.patch({ updateOnStartup })}
       />
@@ -133,10 +112,40 @@ function Automation({ current }: { current: Settings }) {
             min={0}
             max={60}
             unit="Min."
+            disabled={!current.updateOnStartup}
             onChange={(startupDelayMinutes) => void settings.patch({ startupDelayMinutes })}
           />
         )}
       </SettingField>
+      <FieldSeparator />
+      <SwitchField
+        label="Regelmäßig prüfen"
+        description="Zusätzlich in festem Abstand prüfen, solange die App läuft."
+        checked={current.periodicChecks}
+        onChange={(periodicChecks) => void settings.patch({ periodicChecks })}
+      />
+      <FieldSeparator />
+      <SettingField label="Prüfintervall" description="Abstand zwischen zwei regelmäßigen Prüfungen.">
+        {(ids) => (
+          <NumberStepper
+            id={ids.control}
+            describedBy={ids.description}
+            value={current.checkIntervalHours}
+            min={1}
+            max={168}
+            unit="Std."
+            disabled={!current.periodicChecks}
+            onChange={(checkIntervalHours) => void settings.patch({ checkIntervalHours })}
+          />
+        )}
+      </SettingField>
+      <FieldSeparator />
+      <SwitchField
+        label="Updates automatisch installieren"
+        description="Gefundene Updates ohne Rückfrage installieren. Aus: nur prüfen und benachrichtigen."
+        checked={current.autoUpdate}
+        onChange={(autoUpdate) => void settings.patch({ autoUpdate })}
+      />
       <FieldSeparator />
       <SwitchField
         label="Mit Windows starten"

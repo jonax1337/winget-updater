@@ -11,6 +11,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { RelativeTime } from "@/components/relative-time";
 import { useUpdater } from "@/hooks/use-updater";
+import type { Settings } from "@/lib/types";
 
 export function SectionCards() {
   const { run, scan, settings, actionable, packages, scanning } = useUpdater();
@@ -43,11 +44,7 @@ export function SectionCards() {
         icon={<CalendarClock />}
         loading={run.loading}
         value={<RelativeTime timestamp={run.state.nextScan} />}
-        footer={
-          current
-            ? `Automatisch alle ${current.checkIntervalHours} Stunden`
-            : "Zeitplan wird geladen"
-        }
+        footer={scheduleLabel(current)}
       />
       <SectionCard
         label="Automatische Updates"
@@ -96,4 +93,10 @@ function SectionCard({
 function autoUpdateLabel(enabled?: boolean): string {
   if (enabled === undefined) return "Nicht verbunden";
   return enabled ? "Aktiv" : "Aus";
+}
+
+function scheduleLabel(settings?: Settings): string {
+  if (!settings) return "Zeitplan wird geladen";
+  if (settings.periodicChecks) return `Automatisch alle ${settings.checkIntervalHours} Stunden`;
+  return settings.updateOnStartup ? "Nur beim Anmelden" : "Nur manuell";
 }

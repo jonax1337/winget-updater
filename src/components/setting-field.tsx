@@ -73,6 +73,7 @@ export function NumberStepper({
   max,
   unit,
   describedBy,
+  disabled = false,
   onChange,
 }: {
   id: string;
@@ -81,6 +82,7 @@ export function NumberStepper({
   max: number;
   unit: string;
   describedBy: string;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   const [draft, setDraft] = useState(String(value));
@@ -104,7 +106,7 @@ export function NumberStepper({
         <InputGroupButton
           size="icon-xs"
           aria-label="Verringern"
-          disabled={value <= min}
+          disabled={disabled || value <= min}
           onClick={() => commit(value - 1)}
         >
           <Minus />
@@ -114,6 +116,7 @@ export function NumberStepper({
         id={id}
         inputMode="numeric"
         aria-describedby={describedBy}
+        disabled={disabled}
         className="text-center tabular-nums"
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
@@ -127,7 +130,7 @@ export function NumberStepper({
         <InputGroupButton
           size="icon-xs"
           aria-label="Erhöhen"
-          disabled={value >= max}
+          disabled={disabled || value >= max}
           onClick={() => commit(value + 1)}
         >
           <Plus />

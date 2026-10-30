@@ -145,10 +145,13 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            auto_update: true,
+            auto_update: false,
+            periodic_checks: false,
             check_interval_hours: 6,
             update_on_startup: true,
             startup_delay_minutes: 2,
+    /// Without periodic checks the app only checks once after it starts (i.e. at login).
+    pub periodic_checks: bool,
             notify: true,
             autostart: true,
             include_unknown_versions: false,
