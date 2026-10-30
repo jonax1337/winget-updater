@@ -1,13 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
-  <defs>
-    <linearGradient id="background" x1="80" y1="64" x2="944" y2="960" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4F46E5"/>
-      <stop offset="1" stop-color="#9333EA"/>
-    </linearGradient>
-  </defs>
-  <rect width="1024" height="1024" rx="232" fill="url(#background)"/>
-  <path d="M755 329A324 324 0 1 0 823 560" stroke="white" stroke-width="64" stroke-linecap="round"/>
-  <path d="M645 329H773V201" stroke="white" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="m512 332 164 90v180L512 692l-164-90V422l164-90Z" stroke="white" stroke-width="48" stroke-linejoin="round"/>
-  <path d="m348 422 164 90 164-90M512 512v180M430 377l164 90" stroke="white" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 256 256" fill="none">
+  <title>Winget Updater</title>
+  <desc>Lime WU monogram with an upward arrow on graphite.</desc>
+  <rect width="256" height="256" rx="56" fill="#181B19"/>
+  <path id="monogram" d="M28 92H58L70 136L99 94Q101 92 104 92H130L166 148Q168 152 173 152H180Q186 152 186 146V92H174L200 64L226 92H214V149Q214 161 205 170L193 182Q189 186 183 186H161Q157 186 154 181L122 130L90 186H56Z" fill="#C9F46A"/>
 </svg>

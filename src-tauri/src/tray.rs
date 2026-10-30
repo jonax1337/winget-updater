@@ -9,15 +9,18 @@ use crate::engine;
 use crate::error::{AppError, AppResult};
 
 const TRAY_ID: &str = "main-tray";
+const LIGHT_TRAY: Image<'static> = tauri::include_image!("icons/tray-light.png");
+const DARK_TRAY: Image<'static> = tauri::include_image!("icons/tray-dark.png");
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Öffnen", true, None::<&str>)?;
-    let scan = MenuItem::with_id(app, "scan", "Jetzt prüfen", true, None::<&str>)?;
-    let update = MenuItem::with_id(app, "update", "Alle aktualisieren", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
+    let scan = MenuItem::with_id(app, "scan", "Check now", true, None::<&str>)?;
+    let update = MenuItem::with_id(app, "update", "Update all", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Beenden", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &scan, &update, &separator, &quit])?;
-    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
+    let builder = TrayIconBuilder::with_id(TRAY_ID)
+        .icon(tray_icon())
         .menu(&menu)
         .tooltip(tooltip(0))
         .show_menu_on_left_click(false)
@@ -34,9 +37,6 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 show_main_window(tray.app_handle());
             }
         });
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone());
-    }
     builder.build(app)?;
     Ok(())
 }
@@ -66,7 +66,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
                 engine::report_error(
                     app,
                     &AppError::Other(
-                        "Bitte vor dem Beenden den laufenden Vorgang abwarten.".into(),
+                        "Wait for the current operation to finish before quitting.".into(),
                     ),
                 );
             } else {
@@ -81,7 +81,7 @@ pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         for result in [window.show(), window.unminimize(), window.set_focus()] {
             if let Err(error) = result {
-                eprintln!("Fenster konnte nicht geöffnet werden: {error}");
+                eprintln!("Could not open window: {error}");
             }
         }
     }
@@ -94,22 +94,50 @@ pub fn show_pending_updates(app: &AppHandle, pending_updates: u32) -> AppResult<
     };
     tray.set_tooltip(Some(tooltip(pending_updates)))
         .map_err(tray_error)?;
-    if let Some(icon) = app.default_window_icon() {
-        let icon = if pending_updates > 0 {
-            Image::new_owned(with_badge(icon.rgba(), icon.width()), icon.width(), icon.height())
-        } else {
-            icon.to_owned()
-        };
-        tray.set_icon(Some(icon)).map_err(tray_error)?;
-    }
+    let icon = tray_icon();
+    let icon = if pending_updates > 0 {
+        Image::new_owned(
+            with_badge(icon.rgba(), icon.width()),
+            icon.width(),
+            icon.height(),
+        )
+    } else {
+        icon
+    };
+    tray.set_icon(Some(icon)).map_err(tray_error)?;
     Ok(())
+}
+
+/// The Windows taskbar theme is independent of the app's light/dark preference.
+fn tray_icon() -> Image<'static> {
+    if taskbar_is_light() {
+        LIGHT_TRAY
+    } else {
+        DARK_TRAY
+    }
+}
+
+#[cfg(windows)]
+fn taskbar_is_light() -> bool {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        .and_then(|key| key.get_value::<u32, _>("SystemUsesLightTheme"))
+        .unwrap_or(0)
+        != 0
+}
+
+#[cfg(not(windows))]
+fn taskbar_is_light() -> bool {
+    false
 }
 
 fn tooltip(pending_updates: u32) -> String {
     match pending_updates {
-        0 => "Winget Updater – alles aktuell".into(),
-        1 => "Winget Updater – 1 Update verfügbar".into(),
-        count => format!("Winget Updater – {count} Updates verfügbar"),
+        0 => "Winget Updater – up to date".into(),
+        1 => "Winget Updater – 1 update available".into(),
+        count => format!("Winget Updater – {count} Updates available"),
     }
 }
 
@@ -117,10 +145,11 @@ fn tray_error(error: tauri::Error) -> AppError {
     AppError::Other(format!("Tray: {error}"))
 }
 
-const BADGE_COLOR: [u8; 3] = [0xE5, 0x48, 0x4D];
-/// Badge radius and the transparent ring around it, relative to the icon width.
-const BADGE_RADIUS: f32 = 0.24;
-const BADGE_GAP: f32 = 0.07;
+const BADGE_COLOR: [u8; 3] = [0xC9, 0xF4, 0x6A];
+const BADGE_RING: [u8; 3] = [0x18, 0x1B, 0x19];
+/// A graphite outline keeps the lime dot visible on both taskbar themes.
+const BADGE_RADIUS: f32 = 0.17;
+const BADGE_GAP: f32 = 0.05;
 
 /// Draws an anti-aliased dot into the bottom-right corner of a square RGBA icon.
 fn with_badge(rgba: &[u8], width: u32) -> Vec<u8> {
@@ -132,8 +161,11 @@ fn with_badge(rgba: &[u8], width: u32) -> Vec<u8> {
         let x = (index as u32 % width) as f32 + 0.5;
         let y = (index as u32 / width) as f32 + 0.5;
         let distance = (x - center).hypot(y - center);
-        let cutout = coverage(radius + size * BADGE_GAP - distance);
-        pixel[3] = (f32::from(pixel[3]) * (1.0 - cutout)).round() as u8;
+        blend_over(
+            pixel,
+            BADGE_RING,
+            coverage(radius + size * BADGE_GAP - distance),
+        );
         blend_over(pixel, BADGE_COLOR, coverage(radius - distance));
     }
     pixels
@@ -173,13 +205,35 @@ mod tests {
         let icon = [255u8; (WIDTH * WIDTH * 4) as usize];
         let badged = with_badge(&icon, WIDTH);
         assert_eq!(pixel_at(&badged, 0, 0), [255, 255, 255, 255]);
-        assert_eq!(pixel_at(&badged, 24, 24), [0xE5, 0x48, 0x4D, 255]);
+        assert_eq!(pixel_at(&badged, 24, 24), [0xC9, 0xF4, 0x6A, 255]);
+        assert_eq!(pixel_at(&badged, 20, 26), [0x18, 0x1B, 0x19, 255]);
+    }
+
+    #[test]
+    fn tray_variants_have_matching_transparent_silhouettes() {
+        assert_eq!((LIGHT_TRAY.width(), LIGHT_TRAY.height()), (WIDTH, WIDTH));
+        assert_eq!((DARK_TRAY.width(), DARK_TRAY.height()), (WIDTH, WIDTH));
+        assert_eq!(pixel_at(LIGHT_TRAY.rgba(), 0, 0)[3], 0);
+        let mut opaque_pixels = 0;
+        for (light, dark) in LIGHT_TRAY
+            .rgba()
+            .as_chunks::<4>().0.iter()
+            .zip(DARK_TRAY.rgba().as_chunks::<4>().0.iter())
+        {
+            assert_eq!(light[3], dark[3]);
+            if light[3] == 255 {
+                opaque_pixels += 1;
+                assert_eq!(&light[..3], &[0x18, 0x1B, 0x19]);
+                assert_eq!(&dark[..3], &[0xF3, 0xF5, 0xF0]);
+            }
+        }
+        assert!(opaque_pixels > 100);
     }
 
     #[test]
     fn tooltip_uses_singular_and_plural() {
-        assert_eq!(tooltip(0), "Winget Updater – alles aktuell");
-        assert_eq!(tooltip(1), "Winget Updater – 1 Update verfügbar");
-        assert_eq!(tooltip(3), "Winget Updater – 3 Updates verfügbar");
+        assert_eq!(tooltip(0), "Winget Updater – up to date");
+        assert_eq!(tooltip(1), "Winget Updater – 1 update available");
+        assert_eq!(tooltip(3), "Winget Updater – 3 Updates available");
     }
 }
