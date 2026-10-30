@@ -5,18 +5,20 @@ import {
   History,
   LayoutDashboard,
   Settings2,
+  Store,
 } from "lucide-react";
 import { NavMain, type NavItem } from "@/components/nav-main";
 import { NavSecondary } from "@/components/nav-secondary";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { useUpdater } from "@/hooks/use-updater";
 
-export type Page = "overview" | "updates" | "software" | "history" | "settings";
+export type Page = "overview" | "updates" | "software" | "catalog" | "history" | "settings";
 
 export const PAGE_TITLES: Record<Page, string> = {
   overview: "Übersicht",
   updates: "Updates",
   software: "Software",
+  catalog: "Catalog",
   history: "Verlauf",
   settings: "Einstellungen",
 };
@@ -39,6 +41,7 @@ export function AppSidebar({
       badge: actionable.length,
     },
     { id: "software", title: PAGE_TITLES.software, icon: <AppWindow /> },
+    { id: "catalog", title: PAGE_TITLES.catalog, icon: <Store /> },
     { id: "history", title: PAGE_TITLES.history, icon: <History /> },
   ];
   const secondary: NavItem<Page>[] = [

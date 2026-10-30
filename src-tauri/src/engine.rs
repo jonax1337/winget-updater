@@ -12,7 +12,7 @@ use tokio::sync::{OwnedMutexGuard, watch};
 use crate::error::{AppError, AppResult};
 use crate::managers;
 use crate::models::*;
-use crate::{history, process, settings, tray};
+use crate::{catalog, history, process, settings, tray};
 
 pub struct AppState {
     snapshot: Mutex<Snapshot>,
@@ -469,6 +469,11 @@ pub async fn uninstall(app: &AppHandle, package: PackageRef) -> AppResult<()> {
     Ok(())
 }
 
+pub async fn install(app: &AppHandle, package_id: String) -> AppResult<()> {
+    let _operation = Operation::begin(app, Activity::Install)?;
+    blocking(move || catalog::install(&package_id)).await
+}
+
 fn forget_uninstalled(app: &AppHandle, package: &PackageRef) {
     {
         let state = app.state::<AppState>();
@@ -622,6 +627,7 @@ enum Activity {
     Scan,
     Update,
     Uninstall,
+    Install,
 }
 
 struct Operation {
@@ -640,8 +646,11 @@ impl Operation {
         {
             let mut snapshot = state.snapshot();
             snapshot.run.scanning = matches!(activity, Activity::Scan);
-            // The UI has no separate uninstall state; both change installed packages.
-            snapshot.run.updating = matches!(activity, Activity::Update | Activity::Uninstall);
+            // The UI has no separate uninstall or install state; all of them change installed packages.
+            snapshot.run.updating = matches!(
+                activity,
+                Activity::Update | Activity::Uninstall | Activity::Install
+            );
         }
         publish_run_state(app);
         Ok(Self {
