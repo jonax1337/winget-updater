@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
@@ -111,7 +112,7 @@ impl PackageManager for Winget {
     }
 }
 
-fn run_powershell(query: &str) -> AppResult<CommandOutput> {
+pub(crate) fn run_powershell(query: &str) -> AppResult<CommandOutput> {
     let script = format!("{POWERSHELL_PRELUDE}{query}");
     process::run(
         "powershell.exe",
@@ -120,7 +121,7 @@ fn run_powershell(query: &str) -> AppResult<CommandOutput> {
     )
 }
 
-fn powershell_fallback_warning(error: &AppError) -> String {
+pub(crate) fn powershell_fallback_warning(error: &AppError) -> String {
     format!("Could not read WinGet PowerShell output – using the table fallback: {error}")
 }
 
@@ -183,7 +184,7 @@ struct PowershellPackage {
     source: Option<String>,
 }
 
-fn parse_powershell_rows(output: &str) -> AppResult<Vec<PowershellPackage>> {
+pub(crate) fn parse_powershell_rows<Row: DeserializeOwned>(output: &str) -> AppResult<Vec<Row>> {
     let value: serde_json::Value =
         serde_json::from_str(output.trim().trim_start_matches('\u{feff}'))
             .map_err(|error| AppError::Parse(format!("WinGet-PowerShell: {error}")))?;
@@ -223,7 +224,7 @@ fn upgradable_package(row: PowershellPackage) -> Option<Package> {
 }
 
 fn parse_powershell_installed(output: &str) -> AppResult<Vec<InstalledPackage>> {
-    let packages = parse_powershell_rows(output)?
+    let packages = parse_powershell_rows::<PowershellPackage>(output)?
         .into_iter()
         .map(|row| InstalledPackage {
             manager: ManagerId::Winget,
@@ -236,7 +237,7 @@ fn parse_powershell_installed(output: &str) -> AppResult<Vec<InstalledPackage>> 
     Ok(without_duplicates(packages))
 }
 
-fn non_empty(value: Option<String>) -> Option<String> {
+pub(crate) fn non_empty(value: Option<String>) -> Option<String> {
     value.filter(|value| !value.is_empty())
 }
 
@@ -248,13 +249,13 @@ fn without_duplicates(mut packages: Vec<InstalledPackage>) -> Vec<InstalledPacka
     packages
 }
 
-struct WingetTable<'a> {
-    columns: Vec<usize>,
-    rows: Vec<&'a str>,
+pub(crate) struct WingetTable<'a> {
+    pub(crate) columns: Vec<usize>,
+    pub(crate) rows: Vec<&'a str>,
 }
 
 /// `None` means winget reported that nothing matched, which is not an error.
-fn read_table(clean: &str) -> AppResult<Option<WingetTable<'_>>> {
+pub(crate) fn read_table(clean: &str) -> AppResult<Option<WingetTable<'_>>> {
     let lines: Vec<_> = clean
         .split(['\r', '\n'])
         .filter(|line| !line.trim().is_empty())
@@ -308,7 +309,7 @@ fn parse_winget_installed(output: &str) -> AppResult<Installed> {
 }
 
 /// Stops at the first line that is no row (e.g. the summary) and skips rows with truncated IDs.
-fn parse_rows<T>(
+pub(crate) fn parse_rows<T>(
     table: &WingetTable,
     parse_row: fn(&str, &[usize]) -> Option<T>,
     id: impl Fn(&T) -> &str,
@@ -351,7 +352,7 @@ fn truncated_id_warnings(truncated: usize) -> Vec<String> {
     )]
 }
 
-fn strip_terminal_sequences(output: &str) -> String {
+pub(crate) fn strip_terminal_sequences(output: &str) -> String {
     let mut characters = output.chars().peekable();
     let mut clean = String::new();
     while let Some(character) = characters.next() {
@@ -387,7 +388,7 @@ fn column_starts(header: &str) -> Vec<usize> {
         .collect()
 }
 
-fn table_fields(line: &str, columns: &[usize]) -> Vec<String> {
+pub(crate) fn table_fields(line: &str, columns: &[usize]) -> Vec<String> {
     let characters: Vec<_> = line.chars().collect();
     let boundary = |index: usize| {
         columns

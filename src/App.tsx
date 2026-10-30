@@ -11,6 +11,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UpdaterProvider, useUpdater } from "@/hooks/use-updater";
+import { Catalog } from "@/pages/catalog";
 import { History } from "@/pages/history";
 import { Overview } from "@/pages/overview";
 import { SettingsPage } from "@/pages/settings";
@@ -85,6 +86,8 @@ function CurrentPage({ page, navigate }: { page: Page; navigate: (page: Page) =>
       return <Updates />;
     case "software":
       return <Software />;
+    case "catalog":
+      return <Catalog />;
     case "history":
       return <History />;
     case "settings":

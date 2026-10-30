@@ -2,7 +2,7 @@ mod chocolatey;
 mod npm;
 mod pip;
 mod scoop;
-mod winget;
+pub(crate) mod winget;
 
 use crate::error::AppResult;
 use crate::models::{InstalledPackage, ManagerId, Package};

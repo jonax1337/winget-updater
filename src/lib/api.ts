@@ -12,6 +12,7 @@ import type {
   UpdateEvent,
   UpdateSummary,
 } from "./types";
+import type { CatalogSearchResult } from "./catalog";
 
 export function toAppError(error: unknown): AppError {
   if (
@@ -92,6 +93,10 @@ export const clearHistory = () => command<void>("clear_history");
 export const getPackageIcon = (reference: PackageRef, name: string) =>
   command<string | null>("get_package_icon", { package: reference, name });
 export const installWingetModule = () => command<void>("install_winget_module");
+export const searchCatalog = (query: string) =>
+  command<CatalogSearchResult>("search_catalog", { query });
+export const installCatalogPackage = (id: string) =>
+  command<void>("install_catalog_package", { id });
 
 export const onRunState = (handler: (payload: RunState) => void) =>
   onEvent("run-state", handler);

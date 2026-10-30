@@ -1,3 +1,4 @@
+mod catalog;
 mod commands;
 mod engine;
 mod error;
@@ -41,6 +42,8 @@ pub fn run() {
             commands::clear_history,
             commands::get_package_icon,
             commands::install_winget_module,
+            commands::search_catalog,
+            commands::install_catalog_package,
         ])
         .setup(|app| {
             let handle = app.handle();

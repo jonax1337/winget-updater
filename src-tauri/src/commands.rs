@@ -1,5 +1,6 @@
 use tauri::AppHandle;
 
+use crate::catalog::{self, CatalogSearchResult};
 use crate::error::{AppError, AppResult};
 use crate::models::*;
 use crate::{engine, history, icons};
@@ -94,6 +95,18 @@ pub async fn get_package_icon(
 #[tauri::command]
 pub async fn install_winget_module(app: AppHandle) -> AppResult<()> {
     engine::install_winget_module(&app).await
+}
+
+#[tauri::command]
+pub async fn search_catalog(query: String) -> AppResult<CatalogSearchResult> {
+    tauri::async_runtime::spawn_blocking(move || catalog::search(&query))
+        .await
+        .map_err(background_error)?
+}
+
+#[tauri::command]
+pub async fn install_catalog_package(app: AppHandle, id: String) -> AppResult<()> {
+    engine::install(&app, id).await
 }
 
 fn background_error(error: impl std::fmt::Display) -> AppError {

@@ -1,0 +1,15 @@
+Name               ID                      Version    Übereinstimmung
+---------------------------------------------------------------------
+Git                Git.Git                 2.56.0.3   
+Git                Microsoft.Git           2.56.0.0.2 
+OpenCherry Desktop 4nrry.OpenCherryDesktop 0.0.1      Tag: git
+DevMate            ADELA.Devmate           0.1.6      Tag: git
+git-crypt          AGWA.git-crypt          0.7.0      Tag: git
+GitTop             AmarBego.GitTop         0.5.3      Tag: git
+OffGitx64          Andrea.OffGitx64        1.1        Tag: git
+GitNodes           AndreaBozzo.GitNodes    0.2.0      Tag: git
+RepoZ              AndreasWascher.RepoZ    5.5        Tag: git
+Araxis Merge       Araxis.Merge            2026.1     Tag: git
+sem                AtaraxyLabs.sem         0.28.2     Tag: git
+Sourcetree         Atlassian.Sourcetree    3.4.33     Tag: git
+<zusätzliche Einträge wegen Ergebnisgrenzwert abgeschnitten>
