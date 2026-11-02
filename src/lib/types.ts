@@ -49,10 +49,24 @@ export interface InstalledResult {
 
 export type UpdateStatus = "queued" | "running" | "succeeded" | "failed" | "skipped";
 
+export type FailureReason =
+  | "inUse"
+  | "installerBusy"
+  | "needsAdmin"
+  | "approvalDeclined"
+  | "checksumMismatch"
+  | "noApplicableUpgrade"
+  | "noNetwork"
+  | "rebootRequired"
+  | "unknown";
+
 export interface UpdateEvent {
   package: PackageRef;
   status: UpdateStatus;
   message: string | null;
+  reason: FailureReason | null;
+  /** Raw command output behind a failure. */
+  details: string | null;
 }
 
 export interface UpdateSummary {
@@ -67,6 +81,8 @@ export interface HistoryEntry {
   toVersion: string;
   status: UpdateStatus;
   message: string | null;
+  reason?: FailureReason | null;
+  details?: string | null;
   finishedAt: string;
 }
 

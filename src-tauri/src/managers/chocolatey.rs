@@ -1,5 +1,6 @@
 use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
+use crate::failure;
 use crate::models::{InstalledPackage, ManagerId, Package};
 use crate::process::{self, CommandOutput, LIST_TIMEOUT, UNINSTALL_TIMEOUT, UPDATE_TIMEOUT};
 
@@ -38,7 +39,7 @@ impl PackageManager for Chocolatey {
             &["upgrade", package_id, "-y", "--no-progress"],
             UPDATE_TIMEOUT,
         )?;
-        ensure_success_or_restart(output, "choco upgrade")
+        failure::check_upgrade(output, "choco upgrade")
     }
 
     fn list_installed(&self) -> AppResult<Installed> {

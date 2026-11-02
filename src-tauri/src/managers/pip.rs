@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
+use crate::failure;
 use crate::models::{InstalledPackage, ManagerId, Package};
 use crate::process::{self, LIST_TIMEOUT, UNINSTALL_TIMEOUT, UPDATE_TIMEOUT};
 
@@ -42,13 +43,12 @@ impl PackageManager for Pip {
 
     fn upgrade(&self, package_id: &str) -> AppResult<()> {
         process::validate_package_id(package_id)?;
-        process::run(
+        let output = process::run(
             "python",
             &["-m", "pip", "install", "-U", "--user", package_id],
             UPDATE_TIMEOUT,
-        )?
-        .ensure_success("python -m pip install -U --user")?;
-        Ok(())
+        )?;
+        failure::check_upgrade(output, "python -m pip install -U --user")
     }
 
     fn list_installed(&self) -> AppResult<Installed> {

@@ -122,13 +122,17 @@ function PackageStatus({ entry }: { entry: Package }) {
   const event = progress.events.get(packageKey(entry));
   if (event)
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-start gap-1">
         <StatusBadge status={event.status} />
         {event.message && (
-          <span className="max-w-56 truncate text-xs text-muted-foreground" title={event.message}>
+          <span
+            className="max-w-56 truncate text-xs text-muted-foreground"
+            title={event.details ?? event.message}
+          >
             {event.message}
           </span>
         )}
+        {event.status === "failed" && <RetryButton entry={entry} />}
       </div>
     );
   const enabled = settings.settings?.enabledManagers.includes(entry.manager);
@@ -136,6 +140,23 @@ function PackageStatus({ entry }: { entry: Package }) {
     <Badge variant="outline" className="text-muted-foreground">
       {availabilityLabel(entry.ignored, enabled)}
     </Badge>
+  );
+}
+
+function RetryButton({ entry }: { entry: Package }) {
+  const { busy, ready, settings, actionable, update } = useUpdater();
+  const updatable = actionable.some((candidate) => packageKey(candidate) === packageKey(entry));
+  if (!updatable) return null;
+  return (
+    <Button
+      variant="link"
+      size="sm"
+      className="h-auto p-0 text-xs"
+      disabled={busy || !ready || settings.saving}
+      onClick={() => void update([entry])}
+    >
+      Try again
+    </Button>
   );
 }
 

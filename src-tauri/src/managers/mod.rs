@@ -4,8 +4,9 @@ mod pip;
 mod scoop;
 pub(crate) mod winget;
 
-use crate::error::AppResult;
-use crate::models::{InstalledPackage, ManagerId, Package};
+use crate::error::{AppError, AppResult};
+use crate::models::{InstalledPackage, ManagerId, Package, PackageRef};
+use crate::settings;
 
 #[derive(Debug, Default)]
 pub struct Upgrades {
@@ -60,4 +61,20 @@ pub fn registry() -> Vec<Box<dyn PackageManager>> {
         Box::new(npm::Npm),
         Box::new(pip::Pip),
     ]
+}
+
+/// The manager behind `package`, provided it is installed on this machine.
+pub fn available(package: &PackageRef) -> AppResult<Box<dyn PackageManager>> {
+    let manager = registry()
+        .into_iter()
+        .find(|manager| manager.id() == package.manager)
+        .ok_or_else(|| AppError::ManagerUnavailable(settings::package_key(package)))?;
+    match manager.detect()? {
+        None => Err(AppError::ManagerUnavailable(manager.display_name().into())),
+        Some(_) => Ok(manager),
+    }
+}
+
+pub fn upgrade(package: &PackageRef) -> AppResult<()> {
+    available(package)?.upgrade(&package.id)
 }

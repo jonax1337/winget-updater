@@ -1,5 +1,7 @@
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 
+use crate::failure::UpdateFailure;
+
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("A check or update is already in progress")]
@@ -8,6 +10,8 @@ pub enum AppError {
     ManagerUnavailable(String),
     #[error("Command failed: {0}")]
     Command(String),
+    #[error("Command failed: {}", .0.details)]
+    Update(UpdateFailure),
     #[error("Timed out: {0}")]
     Timeout(String),
     #[error("Could not read output: {0}")]
@@ -24,6 +28,7 @@ impl AppError {
             Self::Busy => "busy",
             Self::ManagerUnavailable(_) => "managerUnavailable",
             Self::Command(_) => "command",
+            Self::Update(_) => "update",
             Self::Timeout(_) => "timeout",
             Self::Parse(_) => "parse",
             Self::Storage(_) => "storage",

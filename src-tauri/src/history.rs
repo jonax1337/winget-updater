@@ -103,6 +103,8 @@ mod tests {
             to_version: "2".into(),
             status: UpdateStatus::Succeeded,
             message: None,
+            reason: None,
+            details: None,
             finished_at: index.to_string(),
         }
     }

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::failure::FailureReason;
+
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum ManagerId {
@@ -103,6 +105,9 @@ pub struct UpdateEvent {
     pub package: PackageRef,
     pub status: UpdateStatus,
     pub message: Option<String>,
+    pub reason: Option<FailureReason>,
+    /// Raw command output behind a failure.
+    pub details: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
@@ -121,6 +126,10 @@ pub struct HistoryEntry {
     pub to_version: String,
     pub status: UpdateStatus,
     pub message: Option<String>,
+    #[serde(default)]
+    pub reason: Option<FailureReason>,
+    #[serde(default)]
+    pub details: Option<String>,
     /// RFC 3339
     pub finished_at: String,
 }

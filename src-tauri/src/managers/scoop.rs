@@ -1,5 +1,6 @@
 use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
+use crate::failure;
 use crate::models::{InstalledPackage, ManagerId, Package};
 use crate::process::{self, LIST_TIMEOUT, UNINSTALL_TIMEOUT, UPDATE_TIMEOUT};
 
@@ -32,9 +33,8 @@ impl PackageManager for Scoop {
 
     fn upgrade(&self, package_id: &str) -> AppResult<()> {
         process::validate_package_id(package_id)?;
-        process::run("scoop", &["update", package_id], UPDATE_TIMEOUT)?
-            .ensure_success("scoop update")?;
-        Ok(())
+        let output = process::run("scoop", &["update", package_id], UPDATE_TIMEOUT)?;
+        failure::check_upgrade(output, "scoop update")
     }
 
     fn list_installed(&self) -> AppResult<Installed> {

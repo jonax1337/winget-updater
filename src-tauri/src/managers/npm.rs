@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
+use crate::failure;
 use crate::models::{InstalledPackage, ManagerId, Package};
 use crate::process::{self, LIST_TIMEOUT, UNINSTALL_TIMEOUT, UPDATE_TIMEOUT};
 
@@ -38,9 +39,8 @@ impl PackageManager for Npm {
     fn upgrade(&self, package_id: &str) -> AppResult<()> {
         process::validate_package_id(package_id)?;
         let package = format!("{package_id}@latest");
-        process::run("npm", &["install", "-g", &package], UPDATE_TIMEOUT)?
-            .ensure_success("npm install -g")?;
-        Ok(())
+        let output = process::run("npm", &["install", "-g", &package], UPDATE_TIMEOUT)?;
+        failure::check_upgrade(output, "npm install -g")
     }
 
     fn list_installed(&self) -> AppResult<Installed> {

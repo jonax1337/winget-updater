@@ -116,7 +116,10 @@ const HISTORY_COLUMNS: DataTableColumn<HistoryEntry>[] = [
       <div className="flex flex-col gap-1">
         <StatusBadge status={row.original.status} />
         {row.original.status === "failed" && row.original.message && (
-          <span className="max-w-64 truncate text-xs text-muted-foreground" title={row.original.message}>
+          <span
+            className="max-w-64 truncate text-xs text-muted-foreground"
+            title={row.original.details ?? row.original.message}
+          >
             {row.original.message}
           </span>
         )}

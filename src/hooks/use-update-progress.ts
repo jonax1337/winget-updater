@@ -25,6 +25,8 @@ export function useUpdateProgress() {
           package: reference,
           status: "queued",
           message: null,
+          reason: null,
+          details: null,
         });
       }
       return next;

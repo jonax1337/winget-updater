@@ -5,10 +5,10 @@ use serde::de::DeserializeOwned;
 
 use super::{Installed, PackageManager, Upgrades};
 use crate::error::{AppError, AppResult};
+use crate::failure::{self, WINGET_UPDATE_NOT_APPLICABLE};
 use crate::models::{InstalledPackage, ManagerId, Package};
 use crate::process::{self, CommandOutput, LIST_TIMEOUT, UNINSTALL_TIMEOUT, UPDATE_TIMEOUT};
 
-const NO_APPLICABLE_UPGRADE: u32 = 0x8A15002B;
 const POWERSHELL_PRELUDE: &str = r#"$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); if (-not (Get-Module -ListAvailable Microsoft.WinGet.Client)) { exit 42 }; Import-Module Microsoft.WinGet.Client; "#;
 const POWERSHELL_UPGRADABLE_QUERY: &str = r#"$packages=@(Get-WinGetPackage | Where-Object IsUpdateAvailable | Select-Object Id,Name,InstalledVersion,@{Name='AvailableVersion';Expression={@($_.AvailableVersions)[0]}},Source); ConvertTo-Json -InputObject $packages -Compress"#;
 const POWERSHELL_INSTALLED_QUERY: &str = r#"$packages=@(Get-WinGetPackage | Select-Object Id,Name,InstalledVersion,Source); ConvertTo-Json -InputObject $packages -Compress"#;
@@ -70,13 +70,7 @@ impl PackageManager for Winget {
         process::validate_package_id(package_id)?;
         let args = upgrade_args(package_id);
         let output = process::run("winget", &args, UPDATE_TIMEOUT)?;
-        if no_applicable_upgrade(&output) {
-            return Err(AppError::Command(
-                "winget upgrade: no applicable upgrade found (0x8A15002B)".into(),
-            ));
-        }
-        output.ensure_success("winget upgrade")?;
-        Ok(())
+        failure::check_upgrade(output, "winget upgrade")
     }
 
     fn list_installed(&self) -> AppResult<Installed> {
@@ -164,7 +158,7 @@ fn validate_installed_id(package_id: &str) -> AppResult<()> {
 }
 
 fn no_applicable_upgrade(output: &CommandOutput) -> bool {
-    output.exit_code.map(|code| code as u32) == Some(NO_APPLICABLE_UPGRADE)
+    output.exit_code.map(|code| code as u32) == Some(WINGET_UPDATE_NOT_APPLICABLE)
 }
 
 fn unknown_version(version: &str) -> bool {
@@ -679,7 +673,7 @@ mod tests {
             success: false,
             stdout: String::new(),
             stderr: String::new(),
-            exit_code: Some(NO_APPLICABLE_UPGRADE as i32),
+            exit_code: Some(WINGET_UPDATE_NOT_APPLICABLE as i32),
         };
         assert!(no_applicable_upgrade(&output));
         output.exit_code = Some(1);

@@ -10,9 +10,13 @@ use tauri_plugin_notification::NotificationExt;
 use tokio::sync::{OwnedMutexGuard, watch};
 
 use crate::error::{AppError, AppResult};
+use crate::failure::{self, UpdateFailure};
 use crate::managers;
 use crate::models::*;
+use crate::running::RunningApps;
 use crate::{catalog, history, process, settings, tray};
+
+const UPDATE_EVENT: &str = "update-event";
 
 pub struct AppState {
     snapshot: Mutex<Snapshot>,
@@ -396,10 +400,16 @@ async fn update_locked(app: &AppHandle, packages: Vec<Package>, mode: UpdateMode
         summary: UpdateSummary::default(),
         storage_error: None,
     };
-    for package in &packages {
-        publish_update(app, package, UpdateStatus::Queued, None);
+    let queue = busy_apps_last(packages, &running_apps().await);
+    for (package, processes) in &queue {
+        publish_update(
+            app,
+            package,
+            UpdateStatus::Queued,
+            queued_message(&package.name, processes),
+        );
     }
-    for package in packages {
+    for (package, processes) in queue {
         if matches!(mode, UpdateMode::Automatic) && !still_automatic(&package, &get_settings(app)) {
             publish_update(
                 app,
@@ -409,7 +419,7 @@ async fn update_locked(app: &AppHandle, packages: Vec<Package>, mode: UpdateMode
             );
             continue;
         }
-        update_one(app, package, &mut run).await;
+        update_one(app, package, &processes, &mut run).await;
     }
     if let Err(error) = scan_locked(app).await {
         report_error(app, &error);
@@ -417,57 +427,85 @@ async fn update_locked(app: &AppHandle, packages: Vec<Package>, mode: UpdateMode
     run
 }
 
-async fn update_one(app: &AppHandle, package: Package, run: &mut UpdateRun) {
+async fn running_apps() -> RunningApps {
+    blocking(RunningApps::query).await.unwrap_or_else(|error| {
+        eprintln!("Could not check running apps: {error}");
+        RunningApps::default()
+    })
+}
+
+/// Running apps are updated last, which leaves the most time to close them.
+fn busy_apps_last(packages: Vec<Package>, running: &RunningApps) -> Vec<(Package, Vec<String>)> {
+    let mut queue: Vec<_> = packages
+        .into_iter()
+        .map(|package| {
+            let processes = running.processes_of(&package.name);
+            (package, processes)
+        })
+        .collect();
+    queue.sort_by_key(|(_, processes)| !processes.is_empty());
+    queue
+}
+
+fn queued_message(app_name: &str, processes: &[String]) -> Option<String> {
+    (!processes.is_empty()).then(|| {
+        format!(
+            "{app_name} is running ({}), so it is updated last.",
+            processes.join(", ")
+        )
+    })
+}
+
+async fn update_one(app: &AppHandle, package: Package, running: &[String], run: &mut UpdateRun) {
     publish_update(app, &package, UpdateStatus::Running, None);
-    let reference = package_ref(&package);
-    let request = reference.clone();
-    let result = blocking(move || upgrade_package(request)).await;
-    let (status, message) = match result {
+    let request = package_ref(&package);
+    let event = match blocking(move || managers::upgrade(&request)).await {
         Ok(()) => {
             run.summary.succeeded += 1;
-            (UpdateStatus::Succeeded, None)
+            update_event(&package, UpdateStatus::Succeeded, None)
         }
         Err(error) => {
             run.summary.failed += 1;
-            (UpdateStatus::Failed, Some(error.to_string()))
+            failed_event(&package, error, running)
         }
     };
-    let entry = HistoryEntry {
-        package: reference,
-        name: package.name.clone(),
-        from_version: package.current_version.clone(),
-        to_version: package.available_version.clone(),
-        status,
-        message: message.clone(),
-        finished_at: timestamp(),
-    };
+    let entry = history_entry(&package, &event);
     let handle = app.clone();
     if let Err(error) = blocking(move || history::append(&handle, entry)).await {
         report_error(app, &error);
         run.storage_error.get_or_insert(error);
     }
-    publish_update(app, &package, status, message);
+    emit(app, UPDATE_EVENT, event);
 }
 
-fn upgrade_package(package: PackageRef) -> AppResult<()> {
-    available_manager(&package)?.upgrade(&package.id)
+fn failed_event(package: &Package, error: AppError, running: &[String]) -> UpdateEvent {
+    let failure = failure::attribute_to_running_app(UpdateFailure::from(error), running);
+    UpdateEvent {
+        message: Some(failure::explain(&failure, &package.name, running)),
+        reason: Some(failure.reason),
+        details: Some(failure.details),
+        ..update_event(package, UpdateStatus::Failed, None)
+    }
 }
 
-fn available_manager(package: &PackageRef) -> AppResult<Box<dyn managers::PackageManager>> {
-    let manager = managers::registry()
-        .into_iter()
-        .find(|manager| manager.id() == package.manager)
-        .ok_or_else(|| AppError::ManagerUnavailable(settings::package_key(package)))?;
-    match manager.detect()? {
-        None => Err(AppError::ManagerUnavailable(manager.display_name().into())),
-        Some(_) => Ok(manager),
+fn history_entry(package: &Package, event: &UpdateEvent) -> HistoryEntry {
+    HistoryEntry {
+        package: event.package.clone(),
+        name: package.name.clone(),
+        from_version: package.current_version.clone(),
+        to_version: package.available_version.clone(),
+        status: event.status,
+        message: event.message.clone(),
+        reason: event.reason,
+        details: event.details.clone(),
+        finished_at: timestamp(),
     }
 }
 
 pub async fn uninstall(app: &AppHandle, package: PackageRef) -> AppResult<()> {
     let _operation = Operation::begin(app, Activity::Uninstall)?;
     let target = package.clone();
-    blocking(move || available_manager(&target)?.uninstall(&target.id)).await?;
+    blocking(move || managers::available(&target)?.uninstall(&target.id)).await?;
     forget_uninstalled(app, &package);
     Ok(())
 }
@@ -590,15 +628,17 @@ fn publish_update(
     status: UpdateStatus,
     message: Option<String>,
 ) {
-    emit(
-        app,
-        "update-event",
-        UpdateEvent {
-            package: package_ref(package),
-            status,
-            message,
-        },
-    );
+    emit(app, UPDATE_EVENT, update_event(package, status, message));
+}
+
+fn update_event(package: &Package, status: UpdateStatus, message: Option<String>) -> UpdateEvent {
+    UpdateEvent {
+        package: package_ref(package),
+        status,
+        message,
+        reason: None,
+        details: None,
+    }
 }
 
 fn emit(app: &AppHandle, event: &str, payload: impl Serialize + Clone) {
