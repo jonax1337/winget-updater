@@ -1,7 +1,7 @@
 import { Fragment, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { isTauri } from "@tauri-apps/api/core";
-import { Check, Download, EyeOff, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Download, EyeOff, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Combobox } from "@/components/combobox";
 import { ResourceError } from "@/components/resource-error";
@@ -40,7 +40,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useResource } from "@/hooks/use-resource";
 import { useUpdater } from "@/hooks/use-updater";
-import { installWingetModule, toAppError } from "@/lib/api";
+import {
+  disableAdminAccess,
+  enableAdminAccess,
+  getAdminAccess,
+  installWingetModule,
+  onAdminAccess,
+  toAppError,
+} from "@/lib/api";
+import { useBackendEvent } from "@/hooks/use-backend-event";
 import { managerVersionLabel, packageKey, parsePackageKey } from "@/lib/packages";
 import type { ManagerInfo, Settings, Theme } from "@/lib/types";
 
@@ -59,6 +67,7 @@ export function SettingsPage() {
       {settings.loading && <Skeleton className="h-96" />}
       {current && (
         <>
+          <AdministratorAccess current={current} />
           <Automation current={current} />
           <Managers current={current} />
           <Appearance current={current} />
@@ -68,6 +77,71 @@ export function SettingsPage() {
       )}
       {isTauri() && <AppUpdates />}
     </div>
+  );
+}
+
+function AdministratorAccess({ current }: { current: Settings }) {
+  const { busy, settings } = useUpdater();
+  const access = useResource(getAdminAccess, false);
+  const [changing, setChanging] = useState(false);
+  useBackendEvent(onAdminAccess, access.replace);
+
+  const changeAccess = async () => {
+    setChanging(true);
+    try {
+      await (access.data ? disableAdminAccess() : enableAdminAccess());
+    } catch (error) {
+      toast.error("Could not change administrator access", {
+        description: toAppError(error).message,
+      });
+    } finally {
+      await access.refresh();
+      setChanging(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>Administrator access</CardTitle>
+        <CardDescription>
+          Approve Windows UAC once per app session, not once per installer.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <ResourceError error={access.error} retry={access.refresh} />
+        <SwitchField
+          label="Request administrator access at startup"
+          description="Show the standard Windows UAC prompt whenever the app starts, including at sign-in. Applies from the next app start."
+          checked={current.requestAdminOnStartup}
+          disabled={changing || settings.saving}
+          onChange={(requestAdminOnStartup) => void settings.patch({ requestAdminOnStartup })}
+        />
+        <FieldSeparator />
+        <SettingField
+          label={access.data ? "Active for this session" : "Not authorized yet"}
+          description="Authorize now, or approve when you manually install, update, or uninstall a system package. Background updates never open another UAC prompt."
+        >
+          {(ids) => (
+            <Button
+              id={ids.control}
+              aria-describedby={ids.description}
+              variant="outline"
+              disabled={busy || changing || access.loading || !!access.error}
+              onClick={() => void changeAccess()}
+            >
+              {changing ? <Spinner /> : <ShieldCheck />}
+              {access.data ? "End access" : "Authorize session"}
+            </Button>
+          )}
+        </SettingField>
+        <p className="text-sm text-muted-foreground">
+          Access ends when you quit the app, not when you close its window to the tray.
+          Scoop, npm, pip, and the interface keep running without administrator rights.
+          No service or scheduled task is installed. Locked files still require closing the app using them.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

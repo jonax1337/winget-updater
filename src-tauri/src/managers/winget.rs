@@ -147,7 +147,7 @@ fn uninstall_args(id: &str) -> Vec<&str> {
 
 /// Installed software also carries IDs like `ARP\Machine\X64\{GUID}` or names with spaces,
 /// so only option injection and control characters are rejected.
-fn validate_installed_id(package_id: &str) -> AppResult<()> {
+pub(crate) fn validate_installed_id(package_id: &str) -> AppResult<()> {
     let valid = !package_id.trim().is_empty()
         && !package_id.starts_with('-')
         && !package_id.chars().any(char::is_control);

@@ -3,7 +3,23 @@ use tauri::AppHandle;
 use crate::catalog::{self, CatalogSearchResult};
 use crate::error::{AppError, AppResult};
 use crate::models::*;
-use crate::{engine, history, icons};
+use crate::{admin, engine, history, icons};
+use tauri::Manager;
+
+#[tauri::command]
+pub async fn get_admin_access(app: AppHandle) -> AppResult<bool> {
+    Ok(app.state::<admin::AdminSession>().authorized().await)
+}
+
+#[tauri::command]
+pub async fn enable_admin_access(app: AppHandle) -> AppResult<()> {
+    engine::enable_admin_access(&app).await
+}
+
+#[tauri::command]
+pub async fn disable_admin_access(app: AppHandle) -> AppResult<()> {
+    engine::disable_admin_access(&app).await
+}
 
 #[tauri::command]
 pub async fn get_managers(app: AppHandle) -> AppResult<Vec<ManagerInfo>> {

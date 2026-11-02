@@ -165,6 +165,7 @@ pub struct Settings {
     pub startup_delay_minutes: u32,
     pub notify: bool,
     pub autostart: bool,
+    pub request_admin_on_startup: bool,
     pub include_unknown_versions: bool,
     pub enabled_managers: Vec<ManagerId>,
     /// Keys "<manager>:<id>", e.g. "winget:Microsoft.WSL"
@@ -182,6 +183,7 @@ impl Default for Settings {
             startup_delay_minutes: 2,
             notify: true,
             autostart: true,
+            request_admin_on_startup: true,
             include_unknown_versions: false,
             enabled_managers: vec![
                 ManagerId::Winget,
@@ -198,6 +200,23 @@ impl Default for Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn existing_settings_request_admin_at_startup_by_default() {
+        let settings: Settings = serde_json::from_str(r#"{"autostart":true}"#).unwrap();
+        assert!(settings.request_admin_on_startup);
+    }
+
+    #[test]
+    fn startup_admin_prompt_can_be_disabled_and_saved() {
+        let settings: Settings =
+            serde_json::from_str(r#"{"requestAdminOnStartup":false}"#).unwrap();
+        assert!(!settings.request_admin_on_startup);
+        assert_eq!(
+            serde_json::to_value(settings).unwrap()["requestAdminOnStartup"],
+            false
+        );
+    }
+
     #[test]
     fn manager_names_match_serialization() {
         for id in [

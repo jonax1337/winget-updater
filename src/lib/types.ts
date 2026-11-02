@@ -104,6 +104,7 @@ export interface Settings {
   startupDelayMinutes: number;
   notify: boolean;
   autostart: boolean;
+  requestAdminOnStartup: boolean;
   includeUnknownVersions: boolean;
   enabledManagers: ManagerId[];
   ignoredPackages: string[];

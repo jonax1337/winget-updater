@@ -14,7 +14,7 @@ use crate::failure::{self, UpdateFailure};
 use crate::managers;
 use crate::models::*;
 use crate::running::RunningApps;
-use crate::{catalog, history, process, settings, tray};
+use crate::{admin, history, process, scheduler, settings, tray};
 
 const UPDATE_EVENT: &str = "update-event";
 
@@ -55,6 +55,25 @@ impl AppState {
     pub fn schedule_changes(&self) -> watch::Receiver<Settings> {
         self.schedule.subscribe()
     }
+}
+
+/// Resolve startup consent before scheduling updates, without blocking the UI thread.
+pub fn start_session(app: &AppHandle) -> AppResult<()> {
+    let startup_approval = get_settings(app)
+        .request_admin_on_startup
+        .then(|| Operation::begin(app, Activity::Update))
+        .transpose()?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if startup_approval.is_some()
+            && let Err(error) = authorize_admin(&handle).await
+        {
+            report_error(&handle, &error);
+        }
+        drop(startup_approval);
+        scheduler::start(&handle);
+    });
+    Ok(())
 }
 
 pub fn get_settings(app: &AppHandle) -> Settings {
@@ -322,7 +341,7 @@ pub async fn scheduled_cycle(app: &AppHandle) -> AppResult<()> {
         return Ok(());
     }
     set_updating(app);
-    let result = update_locked(app, automatic_packages(app), UpdateMode::Automatic).await;
+    let result = update_locked(app, automatic_packages(app), UpdateMode::Scheduled).await;
     drop(operation);
     finish_update(app, result).map(|_| ())
 }
@@ -378,6 +397,13 @@ struct UpdateRun {
 enum UpdateMode {
     Manual,
     Automatic,
+    Scheduled,
+}
+
+impl UpdateMode {
+    fn may_request_admin(&self) -> bool {
+        !matches!(self, Self::Scheduled)
+    }
 }
 
 fn still_automatic(package: &Package, settings: &Settings) -> bool {
@@ -409,8 +435,19 @@ async fn update_locked(app: &AppHandle, packages: Vec<Package>, mode: UpdateMode
             queued_message(&package.name, processes),
         );
     }
+    let admin_failure = if queue
+        .iter()
+        .any(|(package, _)| admin::needs_admin(package.manager))
+    {
+        prepare_update_access(app, &mode)
+            .await
+            .err()
+            .map(UpdateFailure::from)
+    } else {
+        None
+    };
     for (package, processes) in queue {
-        if matches!(mode, UpdateMode::Automatic) && !still_automatic(&package, &get_settings(app)) {
+        if !matches!(mode, UpdateMode::Manual) && !still_automatic(&package, &get_settings(app)) {
             publish_update(
                 app,
                 &package,
@@ -419,7 +456,7 @@ async fn update_locked(app: &AppHandle, packages: Vec<Package>, mode: UpdateMode
             );
             continue;
         }
-        update_one(app, package, &processes, &mut run).await;
+        update_one(app, package, &processes, admin_failure.as_ref(), &mut run).await;
     }
     if let Err(error) = scan_locked(app).await {
         report_error(app, &error);
@@ -456,10 +493,15 @@ fn queued_message(app_name: &str, processes: &[String]) -> Option<String> {
     })
 }
 
-async fn update_one(app: &AppHandle, package: Package, running: &[String], run: &mut UpdateRun) {
+async fn update_one(
+    app: &AppHandle,
+    package: Package,
+    running: &[String],
+    admin_failure: Option<&UpdateFailure>,
+    run: &mut UpdateRun,
+) {
     publish_update(app, &package, UpdateStatus::Running, None);
-    let request = package_ref(&package);
-    let event = match blocking(move || managers::upgrade(&request)).await {
+    let event = match upgrade_with_access(app, package_ref(&package), admin_failure).await {
         Ok(()) => {
             run.summary.succeeded += 1;
             update_event(&package, UpdateStatus::Succeeded, None)
@@ -478,8 +520,39 @@ async fn update_one(app: &AppHandle, package: Package, running: &[String], run: 
     emit(app, UPDATE_EVENT, event);
 }
 
+async fn upgrade_with_access(
+    app: &AppHandle,
+    package: PackageRef,
+    admin_failure: Option<&UpdateFailure>,
+) -> AppResult<()> {
+    if !admin::needs_admin(package.manager) {
+        return blocking(move || managers::upgrade(&package)).await;
+    }
+    if let Some(failure) = admin_failure {
+        return Err(AppError::Update(failure.clone()));
+    }
+    execute_admin(
+        app,
+        admin::Request {
+            action: admin::Action::Upgrade,
+            manager: package.manager,
+            id: package.id,
+        },
+    )
+    .await
+}
+
 fn failed_event(package: &Package, error: AppError, running: &[String]) -> UpdateEvent {
-    let failure = failure::attribute_to_running_app(UpdateFailure::from(error), running);
+    let installer_failed = matches!(
+        error,
+        AppError::Command(_) | AppError::Update(_) | AppError::Timeout(_)
+    );
+    let failure = UpdateFailure::from(error);
+    let failure = if installer_failed {
+        failure::attribute_to_running_app(failure, running)
+    } else {
+        failure
+    };
     UpdateEvent {
         message: Some(failure::explain(&failure, &package.name, running)),
         reason: Some(failure.reason),
@@ -505,14 +578,82 @@ fn history_entry(package: &Package, event: &UpdateEvent) -> HistoryEntry {
 pub async fn uninstall(app: &AppHandle, package: PackageRef) -> AppResult<()> {
     let _operation = Operation::begin(app, Activity::Uninstall)?;
     let target = package.clone();
-    blocking(move || managers::available(&target)?.uninstall(&target.id)).await?;
+    if admin::needs_admin(target.manager) {
+        authorize_admin(app).await?;
+        execute_admin(
+            app,
+            admin::Request {
+                action: admin::Action::Uninstall,
+                manager: target.manager,
+                id: target.id,
+            },
+        )
+        .await?;
+    } else {
+        blocking(move || managers::available(&target)?.uninstall(&target.id)).await?;
+    }
     forget_uninstalled(app, &package);
     Ok(())
 }
 
 pub async fn install(app: &AppHandle, package_id: String) -> AppResult<()> {
     let _operation = Operation::begin(app, Activity::Install)?;
-    blocking(move || catalog::install(&package_id)).await
+    process::validate_package_id(&package_id)?;
+    authorize_admin(app).await?;
+    execute_admin(
+        app,
+        admin::Request {
+            action: admin::Action::Install,
+            manager: ManagerId::Winget,
+            id: package_id,
+        },
+    )
+    .await
+}
+
+pub async fn enable_admin_access(app: &AppHandle) -> AppResult<()> {
+    let _operation = Operation::begin(app, Activity::Update)?;
+    authorize_admin(app).await
+}
+
+pub async fn disable_admin_access(app: &AppHandle) -> AppResult<()> {
+    let _operation = Operation::begin(app, Activity::Update)?;
+    app.state::<admin::AdminSession>().revoke().await;
+    publish_admin_access(app).await;
+    Ok(())
+}
+
+async fn prepare_update_access(app: &AppHandle, mode: &UpdateMode) -> AppResult<()> {
+    if mode.may_request_admin() {
+        return authorize_admin(app).await;
+    }
+    if app.state::<admin::AdminSession>().authorized().await {
+        return Ok(());
+    }
+    Err(AppError::Update(UpdateFailure::new(
+        failure::FailureReason::NeedsAdmin,
+        "Background system updates need administrator access. Authorize the session in Settings.",
+    )))
+}
+
+async fn authorize_admin(app: &AppHandle) -> AppResult<()> {
+    let result = app.state::<admin::AdminSession>().authorize().await;
+    publish_admin_access(app).await;
+    result
+}
+
+async fn execute_admin(app: &AppHandle, request: admin::Request) -> AppResult<()> {
+    let result = app.state::<admin::AdminSession>().execute(request).await;
+    publish_admin_access(app).await;
+    result
+}
+
+async fn publish_admin_access(app: &AppHandle) {
+    emit(
+        app,
+        "admin-access",
+        app.state::<admin::AdminSession>().authorized().await,
+    );
 }
 
 fn forget_uninstalled(app: &AppHandle, package: &PackageRef) {
@@ -729,6 +870,27 @@ mod tests {
             ignored: false,
         }
     }
+    #[test]
+    fn background_updates_never_request_new_uac_approval() {
+        assert!(!UpdateMode::Scheduled.may_request_admin());
+        assert!(UpdateMode::Automatic.may_request_admin());
+        assert!(UpdateMode::Manual.may_request_admin());
+    }
+
+    #[test]
+    fn session_errors_are_not_misreported_as_locked_files() {
+        let event = failed_event(
+            &package(),
+            AppError::Other("Administrator session disconnected".into()),
+            &["app.exe".into()],
+        );
+        assert_eq!(event.reason, Some(failure::FailureReason::Unknown));
+        assert_eq!(
+            event.message.as_deref(),
+            Some("Administrator session disconnected")
+        );
+    }
+
     #[test]
     fn automatic_update_allows_enabled_package() {
         assert!(still_automatic(&package(), &Settings::default()));

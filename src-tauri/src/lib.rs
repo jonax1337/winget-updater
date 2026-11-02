@@ -1,3 +1,4 @@
+mod admin;
 mod catalog;
 mod commands;
 mod engine;
@@ -17,6 +18,9 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Some(code) = admin::run_helper_if_requested() {
+        std::process::exit(code);
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             tray::show_main_window(app)
@@ -30,6 +34,9 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
+            commands::get_admin_access,
+            commands::enable_admin_access,
+            commands::disable_admin_access,
             commands::get_managers,
             commands::scan_updates,
             commands::get_last_scan,
@@ -56,8 +63,9 @@ pub fn run() {
             history::initialize(handle)?;
             engine::apply_autostart(handle, preferences.autostart)?;
             app.manage(engine::AppState::new(preferences));
+            app.manage(admin::AdminSession::default());
             tray::create(handle)?;
-            scheduler::start(handle);
+            engine::start_session(handle)?;
             if !std::env::args().any(|argument| argument == "--minimized") {
                 tray::show_main_window(handle);
             }

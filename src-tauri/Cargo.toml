@@ -1,6 +1,6 @@
 [package]
 name = "winget-updater"
-version = "0.2.0"
+version = "0.3.0"
 description = "Keeps Windows software up to date across winget, Scoop, Chocolatey, npm, and pip."
 authors = ["Jonas Laux"]
 license = "MIT"
@@ -29,7 +29,7 @@ tauri-plugin-single-instance = "2.5.4"
 tauri-plugin-process = "2.4.0"
 tokio = { version = "1.53.3", features = ["full"] }
 regex = "1.13.1"
-windows = { version = "0.62.2", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Foundation"] }
+windows = { version = "0.62.2", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Foundation", "Win32_Security", "Win32_System_Threading", "Win32_System_Pipes", "Win32_System_Com", "Win32_System_SystemInformation", "Win32_Storage_FileSystem"] }
 winreg = "0.56.0"
 base64 = "0.23.1"
 chrono = { version = "0.4.45", features = ["serde"] }

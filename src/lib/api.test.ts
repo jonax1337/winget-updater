@@ -19,6 +19,7 @@ const settings: Settings = {
   startupDelayMinutes: 2,
   notify: true,
   autostart: true,
+  requestAdminOnStartup: true,
   includeUnknownVersions: false,
   enabledManagers: ["winget"],
   ignoredPackages: [],
@@ -29,6 +30,27 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(isTauri).mockReturnValue(true);
   vi.mocked(invoke).mockResolvedValue(undefined);
+});
+
+describe("administrator session", () => {
+  it("checks, authorizes and revokes access through dedicated commands", async () => {
+    await api.getAdminAccess();
+    await api.enableAdminAccess();
+    await api.disableAdminAccess();
+    expect(vi.mocked(invoke).mock.calls.map(([name]) => name)).toEqual([
+      "get_admin_access", "enable_admin_access", "disable_admin_access",
+    ]);
+  });
+
+  it("receives session changes from the backend", async () => {
+    vi.mocked(listen).mockResolvedValue(vi.fn());
+    const callback = vi.fn();
+    await api.onAdminAccess(callback);
+    const [name, handler] = vi.mocked(listen).mock.calls[0];
+    expect(name).toBe("admin-access");
+    handler({ event: name, id: 1, payload: true });
+    expect(callback).toHaveBeenCalledWith(true);
+  });
 });
 
 describe("command adapter", () => {

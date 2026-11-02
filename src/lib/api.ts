@@ -72,6 +72,12 @@ async function onEvent<T>(
   }
 }
 
+export const getAdminAccess = () => command<boolean>("get_admin_access");
+export const enableAdminAccess = () => command<void>("enable_admin_access");
+export const disableAdminAccess = () => command<void>("disable_admin_access");
+export const onAdminAccess = (handler: (authorized: boolean) => void) =>
+  onEvent("admin-access", handler);
+
 export const getManagers = () => command<ManagerInfo[]>("get_managers");
 export const scanUpdates = () => command<ScanResult>("scan_updates");
 export const getLastScan = () => command<ScanResult | null>("get_last_scan");
