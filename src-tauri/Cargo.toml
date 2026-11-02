@@ -1,6 +1,6 @@
 [package]
 name = "winget-updater"
-version = "0.1.0"
+version = "0.2.0"
 description = "Keeps Windows software up to date across winget, Scoop, Chocolatey, npm, and pip."
 authors = ["Jonas Laux"]
 license = "MIT"
